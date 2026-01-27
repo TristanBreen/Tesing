@@ -21,6 +21,12 @@ export type WorkoutSession = {
   name: string; // e.g. "Push Hypertrophy"
   exercises: ExerciseLog[];
   completedAt?: string;
+  startTime?: number; // Timestamp
+  duration?: number; // Seconds (duration in minutes)
+  rating?: number; // 1-5
+  generalNotes?: string;
+  averageRPE?: number;
+  completionRate?: number;
 };
 
 // Database Types
@@ -38,8 +44,9 @@ export type ExerciseTemplate = {
   id: string;
   name: string;
   muscleGroup: MuscleGroup;
-  type: 'Compound' | 'Isolation' | 'Machine' | 'Bodyweight';
+  type: 'Compound' | 'Isolation' | 'Machine' | 'Bodyweight' | 'Custom';
   defaultSets: number;
+  videoUrl?: string;
 };
 
 export type Routine = {
@@ -67,4 +74,41 @@ export type UserGoals = {
   dailyProtein: number;
   dailyCarbs: number;
   dailyFats: number;
+};
+
+// --- Science / Analytics Types ---
+
+export type MuscleRecoveryState = {
+  muscleGroup: MuscleGroup;
+  lastTrainedDate: string | null;
+  hoursSinceTraining: number;
+  setsLastSession: number;
+  fatigueStatus: 'recovered' | 'recovering' | 'fresh';
+  recommendedAction: 'ready' | 'light-only' | 'rest';
+};
+
+export type WeeklyVolume = {
+  muscleGroup: MuscleGroup;
+  setsThisWeek: number;
+  recommendedRange: [number, number];
+  status: 'undertrained' | 'optimal' | 'overtrained';
+};
+
+export type ExerciseProgress = {
+  exerciseName: string;
+  exerciseId: string;
+  last3SessionsVolume: number[];
+  trend: 'increasing' | 'plateaued' | 'decreasing';
+  recommendation: string;
+};
+
+// --- Settings Types ---
+
+export type UserPreferences = {
+  defaultRestTimer: number; // seconds
+  weightUnit: 'lbs' | 'kg';
+  autoStartTimer: boolean;
+  enablePRNotifications: boolean;
+  minRecoveryHours: number;
+  deloadFrequency: number; // weeks
 };

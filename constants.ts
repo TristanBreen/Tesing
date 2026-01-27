@@ -1,4 +1,4 @@
-import { ExerciseTemplate, UserGoals } from './types';
+import { ExerciseTemplate, UserGoals, WorkoutSession, MuscleGroup, MuscleRecoveryState, WeeklyVolume, ExerciseProgress } from './types';
 
 // --- Data ---
 
@@ -87,3 +87,197 @@ export const formatDate = (dateString: string): string => {
 };
 
 export const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// --- Advanced Metrics Helpers ---
+
+export const getWeightRecommendation = (exerciseId: string, history: WorkoutSession[]): number | null => {
+  // Get last session with this exercise
+  const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const lastSession = sortedHistory.find(s => s.exercises.some(e => e.exerciseId === exerciseId));
+  
+  if (!lastSession) return null;
+
+  const exerciseLog = lastSession.exercises.find(e => e.exerciseId === exerciseId);
+  if (!exerciseLog) return null;
+
+  // Check criteria: All sets completed, Average RPE < 8
+  const validSets = exerciseLog.sets.filter(s => s.weight > 0 && s.reps > 0);
+  if (validSets.length === 0) return null;
+
+  const allCompleted = validSets.every(s => s.completed);
+  const avgRPE = validSets.reduce((acc, s) => acc + (s.rpe || 0), 0) / validSets.length;
+
+  if (allCompleted && avgRPE < 8) {
+     // Check if compound or isolation to decide increment
+     const def = MASTER_EXERCISE_LIST.find(e => e.id === exerciseId);
+     const increment = (def?.type === 'Compound' || def?.type === 'Machine') ? 5 : 2.5; 
+     // Return suggested WEIGHT ADDITION
+     return increment;
+  }
+  return null;
+};
+
+export const getMax1RM = (exerciseId: string, history: WorkoutSession[]): number => {
+  let max = 0;
+  history.forEach(session => {
+    const ex = session.exercises.find(e => e.exerciseId === exerciseId);
+    if (ex) {
+      ex.sets.forEach(s => {
+        if (s.completed && s.weight > 0 && s.reps > 0) {
+          const rm = calculate1RM(s.weight, s.reps);
+          if (rm > max) max = rm;
+        }
+      });
+    }
+  });
+  return max;
+};
+
+// --- Science Tab Calculations ---
+
+// Calculate muscle recovery state
+export const calculateMuscleRecovery = (
+  history: WorkoutSession[],
+  muscleGroup: MuscleGroup
+): MuscleRecoveryState => {
+  // Find last session that trained this muscle
+  const relevantSessions = [...history]
+    .filter(s => s.exercises.some(e => e.targetMuscle === muscleGroup))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  if (relevantSessions.length === 0) {
+    return {
+      muscleGroup,
+      lastTrainedDate: null,
+      hoursSinceTraining: Infinity,
+      setsLastSession: 0,
+      fatigueStatus: 'fresh',
+      recommendedAction: 'ready'
+    };
+  }
+
+  const lastSession = relevantSessions[0];
+  const hoursSince = (Date.now() - new Date(lastSession.date).getTime()) / (1000 * 60 * 60);
+  const setsCount = lastSession.exercises
+    .filter(e => e.targetMuscle === muscleGroup)
+    .reduce((acc, e) => acc + e.sets.filter(s => s.completed).length, 0);
+
+  let fatigueStatus: 'recovered' | 'recovering' | 'fresh';
+  let recommendedAction: 'ready' | 'light-only' | 'rest';
+
+  if (hoursSince < 24) {
+    fatigueStatus = 'recovering';
+    recommendedAction = 'rest';
+  } else if (hoursSince < 48) {
+    fatigueStatus = 'recovering';
+    recommendedAction = 'light-only';
+  } else if (hoursSince < 168) { // 7 days
+    fatigueStatus = 'recovered';
+    recommendedAction = 'ready';
+  } else {
+    fatigueStatus = 'fresh';
+    recommendedAction = 'ready';
+  }
+
+  return {
+    muscleGroup,
+    lastTrainedDate: lastSession.date,
+    hoursSinceTraining: Math.round(hoursSince),
+    setsLastSession: setsCount,
+    fatigueStatus,
+    recommendedAction
+  };
+};
+
+// Calculate weekly volume per muscle
+export const calculateWeeklyVolume = (
+  history: WorkoutSession[],
+  muscleGroup: MuscleGroup
+): WeeklyVolume => {
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const recentSessions = history.filter(
+    s => new Date(s.date).getTime() > sevenDaysAgo
+  );
+
+  const totalSets = recentSessions.reduce((acc, session) => {
+    const muscleSets = session.exercises
+      .filter(e => e.targetMuscle === muscleGroup)
+      .reduce((sum, e) => sum + e.sets.filter(s => s.completed).length, 0);
+    return acc + muscleSets;
+  }, 0);
+
+  // Recommended ranges based on muscle group
+  const ranges: Record<string, [number, number]> = {
+    'Chest': [10, 20],
+    'Back': [10, 20],
+    'Legs': [10, 20],
+    'Shoulders': [8, 16],
+    'Arms': [8, 16],
+    'Abs': [6, 12],
+    'Cardio': [0, 999] // Ignore limits
+  };
+
+  const range = ranges[muscleGroup] || [10, 20];
+  let status: 'undertrained' | 'optimal' | 'overtrained';
+
+  if (totalSets < range[0]) status = 'undertrained';
+  else if (totalSets > range[1]) status = 'overtrained';
+  else status = 'optimal';
+
+  return {
+    muscleGroup,
+    setsThisWeek: totalSets,
+    recommendedRange: range,
+    status
+  };
+};
+
+// Analyze exercise progress
+export const analyzeExerciseProgress = (
+  history: WorkoutSession[],
+  exerciseId: string
+): ExerciseProgress | null => {
+  // Get last 3 sessions containing this exercise
+  const sessions = [...history]
+    .filter(s => s.exercises.some(e => e.exerciseId === exerciseId))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 3);
+
+  if (sessions.length < 2) return null;
+
+  const volumes = sessions.reverse().map(session => {
+    const exercise = session.exercises.find(e => e.exerciseId === exerciseId)!;
+    return exercise.sets
+      .filter(s => s.completed)
+      .reduce((sum, s) => sum + calculateVolumeLoad(s.weight, s.reps), 0);
+  });
+
+  // Determine trend
+  let trend: 'increasing' | 'plateaued' | 'decreasing';
+  if (volumes.every((v, i) => i === 0 || v >= volumes[i - 1])) {
+    trend = 'increasing';
+  } else if (volumes[volumes.length - 1] === volumes[volumes.length - 2]) {
+    trend = 'plateaued';
+  } else {
+    trend = 'decreasing';
+  }
+
+  // Generate recommendation
+  let recommendation = '';
+  if (trend === 'increasing') recommendation = 'Great! Try +5lbs next session';
+  else if (trend === 'plateaued') recommendation = 'Add 1 rep per set or increase weight';
+  else recommendation = 'Consider reducing volume or taking a deload';
+
+  // Fallback name lookup from master or assuming it's passed down? 
+  // Ideally we would pass the name in or look it up.
+  // We'll rely on the history data having the name.
+  const exerciseName = sessions[0].exercises.find(e => e.exerciseId === exerciseId)?.name || 'Unknown Exercise';
+
+  return {
+    exerciseName,
+    exerciseId,
+    last3SessionsVolume: volumes,
+    trend,
+    recommendation
+  };
+};

@@ -1,7 +1,7 @@
 import React from 'react';
 import { WorkoutSession, Routine } from '../types';
 import { formatDate } from '../constants';
-import { Play, ArrowRight, Plus, Dumbbell, Settings as SettingsIcon } from 'lucide-react';
+import { Play, ArrowRight, Plus, Dumbbell } from 'lucide-react';
 
 interface DashboardProps {
   history: WorkoutSession[];
@@ -23,12 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ history, routines, onStartWorkout
           <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
           <p className="text-zinc-400 text-sm">Welcome to the Lab.</p>
         </div>
-        <button 
-            onClick={onOpenSettings}
-            className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 hover:border-primary transition-colors text-zinc-400 hover:text-white"
-        >
-           <span className="text-xs font-bold text-primary">HL</span>
-        </button>
+        {/* Settings button removed, moved to bottom nav */}
       </div>
 
       {/* Main Action - Resume or Builder */}

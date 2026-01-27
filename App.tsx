@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { WorkoutSession, ExerciseLog, Routine } from './types';
+import { WorkoutSession, ExerciseLog, Routine, ExerciseTemplate } from './types';
 import { MASTER_EXERCISE_LIST, INITIAL_TEMPLATE_IDS, generateId } from './constants';
 import Dashboard from './components/Dashboard';
 import ActiveWorkout from './components/ActiveWorkout';
-import Analytics from './components/Analytics';
+import ScienceTab from './components/Analytics'; // Renamed import for clarity, file is still Analytics.tsx
 import RoutineBuilder from './components/RoutineBuilder';
 import NutritionLog from './components/NutritionLog';
 import Settings from './components/Settings';
-import { LayoutDashboard, Dumbbell, Activity, Flame, PartyPopper, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, Activity, Flame, PartyPopper, PlusCircle, Settings as SettingsIcon } from 'lucide-react';
 
 type ViewState = 'dashboard' | 'workout' | 'builder' | 'fuel' | 'analytics' | 'settings';
 
@@ -17,7 +17,13 @@ export default function App() {
   const [history, setHistory] = useLocalStorage<WorkoutSession[]>('hl-history', []);
   const [routines, setRoutines] = useLocalStorage<Routine[]>('hl-routines', []);
   const [activeSession, setActiveSession] = useLocalStorage<WorkoutSession | null>('hl-active-session', null);
+  const [customExercises, setCustomExercises] = useLocalStorage<ExerciseTemplate[]>('hl-custom-exercises', []);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Combine Master + Custom
+  const allExercises = useMemo(() => {
+      return [...MASTER_EXERCISE_LIST, ...customExercises];
+  }, [customExercises]);
 
   // --- Actions ---
 
@@ -27,7 +33,7 @@ export default function App() {
     if (routine) {
         // Build from Routine
         exercises = routine.exercises.map(exDef => {
-            const template = MASTER_EXERCISE_LIST.find(e => e.id === exDef.exerciseId);
+            const template = allExercises.find(e => e.id === exDef.exerciseId);
             if (!template) return null;
             return {
                 exerciseId: template.id,
@@ -45,7 +51,7 @@ export default function App() {
     } else {
         // Default Template (Fallback)
         exercises = INITIAL_TEMPLATE_IDS.map(id => {
-          const def = MASTER_EXERCISE_LIST.find(e => e.id === id);
+          const def = allExercises.find(e => e.id === id);
           if(!def) return null;
           return {
             exerciseId: def.id,
@@ -66,7 +72,8 @@ export default function App() {
       id: generateId(),
       date: new Date().toISOString(),
       name: routine ? routine.name : "Quick Workout",
-      exercises: exercises
+      exercises: exercises,
+      startTime: Date.now()
     };
 
     setActiveSession(newSession);
@@ -99,15 +106,19 @@ export default function App() {
       setRoutines([...routines, newRoutine]);
       setActiveView('dashboard');
   };
+
+  const addCustomExercise = (ex: ExerciseTemplate) => {
+      setCustomExercises([...customExercises, ex]);
+  };
   
   const resetData = () => {
       if(window.confirm('Are you sure you want to wipe all data? This cannot be undone.')) {
           setHistory([]);
           setRoutines([]);
           setActiveSession(null);
-          // Also wipe nutrition logs? They are in their own localStorage key, so need to clear that separately or rely on them being ignored if goals are reset.
-          // For now, just these.
+          setCustomExercises([]);
           window.localStorage.removeItem('hl-nutrition-logs');
+          window.localStorage.removeItem('hl-user-preferences');
           alert('All data reset.');
           setActiveView('dashboard');
       }
@@ -138,6 +149,7 @@ export default function App() {
             history={history}
             onUpdateSession={updateSession}
             onFinish={finishWorkout}
+            availableExercises={allExercises}
           />
         )}
 
@@ -145,6 +157,8 @@ export default function App() {
             <RoutineBuilder 
                 onSave={saveRoutine}
                 onCancel={() => setActiveView('dashboard')}
+                availableExercises={allExercises}
+                onAddCustomExercise={addCustomExercise}
             />
         )}
 
@@ -153,7 +167,7 @@ export default function App() {
         )}
 
         {activeView === 'analytics' && (
-          <Analytics history={history} />
+          <ScienceTab history={history} />
         )}
 
         {activeView === 'settings' && (
@@ -163,15 +177,21 @@ export default function App() {
             />
         )}
         
-        {/* Navigation Bar - Hide on Workout, Builder, Settings to focus */}
-        {activeView !== 'workout' && activeView !== 'builder' && activeView !== 'settings' && (
+        {/* Navigation Bar - Hide on Workout, Builder to focus */}
+        {activeView !== 'workout' && activeView !== 'builder' && (
             <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-lg border-t border-zinc-800 pb-safe">
-                <div className="max-w-md mx-auto flex justify-around items-center h-16 px-2">
+                <div className="max-w-md mx-auto flex justify-around items-center h-16 px-1">
                     <NavButton 
                         active={activeView === 'dashboard'} 
                         onClick={() => setActiveView('dashboard')} 
                         icon={LayoutDashboard} 
                         label="Home" 
+                    />
+                     <NavButton 
+                        active={activeView === 'fuel'} 
+                        onClick={() => setActiveView('fuel')} 
+                        icon={Flame} 
+                        label="Fuel" 
                     />
                     <div className="relative -top-5">
                          <button 
@@ -185,16 +205,16 @@ export default function App() {
                         </button>
                     </div>
                     <NavButton 
-                        active={activeView === 'fuel'} 
-                        onClick={() => setActiveView('fuel')} 
-                        icon={Flame} 
-                        label="Fuel" 
-                    />
-                    <NavButton 
                         active={activeView === 'analytics'} 
                         onClick={() => setActiveView('analytics')} 
                         icon={Activity} 
                         label="Science" 
+                    />
+                    <NavButton 
+                        active={activeView === 'settings'} 
+                        onClick={() => setActiveView('settings')} 
+                        icon={SettingsIcon} 
+                        label="Settings" 
                     />
                 </div>
             </nav>
@@ -218,9 +238,9 @@ export default function App() {
 const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
     <button 
         onClick={onClick}
-        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-all duration-200 ${active ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}
+        className={`flex flex-col items-center justify-center w-14 h-full space-y-1 transition-all duration-200 ${active ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}
     >
-        <Icon className={`w-6 h-6 ${active ? 'fill-primary/20' : ''}`} strokeWidth={active ? 2.5 : 2} />
+        <Icon className={`w-5 h-5 ${active ? 'fill-primary/20' : ''}`} strokeWidth={active ? 2.5 : 2} />
         <span className="text-[10px] font-medium">{label}</span>
     </button>
 );
