@@ -4,7 +4,7 @@ import { WorkoutSession, ExerciseLog, Routine, ExerciseTemplate } from './types'
 import { MASTER_EXERCISE_LIST, INITIAL_TEMPLATE_IDS, generateId } from './constants';
 import Dashboard from './components/Dashboard';
 import ActiveWorkout from './components/ActiveWorkout';
-import ScienceTab from './components/Analytics'; // Renamed import for clarity, file is still Analytics.tsx
+import ScienceTab from './components/Analytics';
 import RoutineBuilder from './components/RoutineBuilder';
 import NutritionLog from './components/NutritionLog';
 import Settings from './components/Settings';
@@ -124,6 +124,18 @@ export default function App() {
       }
   };
 
+  const deleteRoutine = (id: string) => {
+      if(window.confirm('Delete this routine?')) {
+          setRoutines(routines.filter(r => r.id !== id));
+      }
+  };
+
+  const deleteSession = (id: string) => {
+      if(window.confirm('Delete this workout log?')) {
+          setHistory(history.filter(h => h.id !== id));
+      }
+  };
+
   // --- Render ---
 
   return (
@@ -140,6 +152,8 @@ export default function App() {
             onGoToBuilder={() => setActiveView('builder')}
             onOpenSettings={() => setActiveView('settings')}
             activeSession={activeSession}
+            onDeleteRoutine={deleteRoutine}
+            onDeleteSession={deleteSession}
           />
         )}
         

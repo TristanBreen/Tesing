@@ -69,6 +69,15 @@ export type MacroDay = {
   isRefeed: boolean;
 };
 
+export type MealPreset = {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+};
+
 export type UserGoals = {
   dailyCalories: number;
   dailyProtein: number;

@@ -36,14 +36,17 @@ const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
       const data = {
           history: localStorage.getItem('hl-history'),
           routines: localStorage.getItem('hl-routines'),
+          nutrition: localStorage.getItem('hl-nutrition-logs'),
+          mealPresets: localStorage.getItem('hl-meal-presets'),
+          customExercises: localStorage.getItem('hl-custom-exercises'),
           goals: localStorage.getItem('hl-user-goals'),
           prefs: localStorage.getItem('hl-user-preferences')
       };
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `hypertrophy-lab-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `hypertrophy-lab-full-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
   };
 

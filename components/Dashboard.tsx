@@ -1,7 +1,7 @@
 import React from 'react';
 import { WorkoutSession, Routine } from '../types';
 import { formatDate } from '../constants';
-import { Play, ArrowRight, Plus, Dumbbell } from 'lucide-react';
+import { Play, ArrowRight, Plus, Dumbbell, Trash2, X } from 'lucide-react';
 
 interface DashboardProps {
   history: WorkoutSession[];
@@ -11,9 +11,21 @@ interface DashboardProps {
   onGoToBuilder: () => void;
   onOpenSettings: () => void;
   activeSession: WorkoutSession | null;
+  onDeleteRoutine: (id: string) => void;
+  onDeleteSession: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ history, routines, onStartWorkout, onResume, onGoToBuilder, onOpenSettings, activeSession }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  history, 
+  routines, 
+  onStartWorkout, 
+  onResume, 
+  onGoToBuilder, 
+  onOpenSettings, 
+  activeSession,
+  onDeleteRoutine,
+  onDeleteSession
+}) => {
   return (
     <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       
@@ -23,7 +35,6 @@ const Dashboard: React.FC<DashboardProps> = ({ history, routines, onStartWorkout
           <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
           <p className="text-zinc-400 text-sm">Welcome to the Lab.</p>
         </div>
-        {/* Settings button removed, moved to bottom nav */}
       </div>
 
       {/* Main Action - Resume or Builder */}
@@ -65,13 +76,23 @@ const Dashboard: React.FC<DashboardProps> = ({ history, routines, onStartWorkout
                 <button 
                     key={routine.id}
                     onClick={() => onStartWorkout(routine)}
-                    className="flex-shrink-0 w-40 bg-surface p-4 rounded-xl border border-zinc-800 hover:border-primary/50 transition-colors text-left flex flex-col gap-2 group"
+                    className="flex-shrink-0 w-40 bg-surface p-4 rounded-xl border border-zinc-800 hover:border-primary/50 transition-colors text-left flex flex-col gap-2 group relative"
                 >
+                    <div 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteRoutine(routine.id);
+                        }}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-zinc-900/50 flex items-center justify-center text-zinc-500 hover:text-red-500 hover:bg-zinc-900 transition-all z-10"
+                    >
+                        <X className="w-4 h-4" />
+                    </div>
+
                     <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-zinc-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
                         <Dumbbell className="w-4 h-4" />
                     </div>
                     <div>
-                        <div className="font-bold text-zinc-200 truncate">{routine.name}</div>
+                        <div className="font-bold text-zinc-200 truncate pr-4">{routine.name}</div>
                         <div className="text-xs text-zinc-500">{routine.exercises.length} Exercises</div>
                     </div>
                 </button>
@@ -93,13 +114,18 @@ const Dashboard: React.FC<DashboardProps> = ({ history, routines, onStartWorkout
                     No history found. Start lifting!
                 </div>
             ) : (
-                [...history].reverse().slice(0, 3).map((session) => (
+                [...history].reverse().slice(0, 5).map((session) => (
                     <div key={session.id} className="bg-surface p-4 rounded-xl border border-zinc-800 flex justify-between items-center group">
                         <div>
                             <div className="font-bold text-zinc-200">{session.name}</div>
                             <div className="text-xs text-zinc-500">{formatDate(session.date)} • {session.exercises.length} Exercises</div>
                         </div>
-                        <ArrowRight className="w-5 h-5 text-zinc-600 group-hover:text-primary transition-colors" />
+                        <button 
+                            onClick={() => onDeleteSession(session.id)}
+                            className="p-2 text-zinc-600 hover:text-red-500 transition-colors"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
                     </div>
                 ))
             )}
