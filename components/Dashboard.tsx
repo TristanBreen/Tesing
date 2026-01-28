@@ -175,7 +175,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Recent Logs */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>RECENT LOGS</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>RECENT LOGS</Text>
+          </View>
           {history.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>No history found. Start lifting!</Text>
@@ -235,7 +237,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
-    marginTop: 8,
+    marginTop: 16,
+    paddingTop: 8,
   },
   title: {
     fontSize: 28,

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet, Modal, Text } from 'react-native';
+import { View, StyleSheet, Modal, Text, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAsyncStorage } from './hooks/useAsyncStorage';
 import { WorkoutSession, Routine, ExerciseTemplate } from './types';
@@ -105,7 +105,15 @@ export default function App() {
   };
 
   const saveRoutine = (newRoutine: Routine) => {
-    setRoutines([...routines, newRoutine]);
+    // Check if editing existing routine
+    const existingIndex = routines.findIndex(r => r.id === newRoutine.id);
+    if (existingIndex >= 0) {
+      const updatedRoutines = [...routines];
+      updatedRoutines[existingIndex] = newRoutine;
+      setRoutines(updatedRoutines);
+    } else {
+      setRoutines([...routines, newRoutine]);
+    }
     setShowBuilder(false);
   };
 
@@ -145,6 +153,7 @@ export default function App() {
             tabBarActiveTintColor: '#06b6d4',
             tabBarInactiveTintColor: '#71717a',
             headerShown: false,
+            tabBarLabelStyle: styles.tabBarLabel,
           }}
         >
           <Tab.Screen 
@@ -258,9 +267,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#18181b',
     borderTopColor: '#27272a',
     borderTopWidth: 1,
-    paddingBottom: 5,
-    paddingTop: 5,
-    height: 60,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    paddingTop: 12,
+    height: Platform.OS === 'ios' ? 100 : 80,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: -4,
   },
   confettiContainer: {
     flex: 1,

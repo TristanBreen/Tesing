@@ -19,6 +19,7 @@ interface RoutineBuilderProps {
   onCancel: () => void;
   availableExercises: ExerciseTemplate[];
   onAddCustomExercise: (ex: ExerciseTemplate) => void;
+  editingRoutine?: Routine | null;
 }
 
 const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
@@ -26,8 +27,9 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
   onCancel,
   availableExercises,
   onAddCustomExercise,
+  editingRoutine,
 }) => {
-  const [routineName, setRoutineName] = useState('');
+  const [routineName, setRoutineName] = useState(editingRoutine?.name || '');
   const [selectedExercises, setSelectedExercises] = useState<
     {
       uniqueId: string;
@@ -35,11 +37,25 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
       targetSets: number;
       targetRepRange: string;
     }[]
-  >([]);
+  >(
+    editingRoutine
+      ? editingRoutine.exercises.map(ex => {
+          const template = availableExercises.find(e => e.id === ex.exerciseId);
+          return {
+            uniqueId: generateId(),
+            template: template || availableExercises[0],
+            targetSets: ex.targetSets,
+            targetRepRange: ex.targetRepRange,
+          };
+        })
+      : []
+  );
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customMuscle, setCustomMuscle] = useState<MuscleGroup>('Chest');
+
+  const muscleGroups: MuscleGroup[] = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs'];
 
   const addExercise = (template: ExerciseTemplate) => {
     setSelectedExercises([
@@ -81,7 +97,7 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
     }
 
     const routine: Routine = {
-      id: generateId(),
+      id: editingRoutine?.id || generateId(),
       name: routineName,
       exercises: selectedExercises.map(ex => ({
         exerciseId: ex.template.id,
@@ -93,7 +109,11 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
   };
 
   const handleCreateCustom = () => {
-    if (!customName) return;
+    if (!customName.trim()) {
+      Alert.alert('Error', 'Please enter an exercise name');
+      return;
+    }
+    
     const newEx: ExerciseTemplate = {
       id: `custom-${generateId()}`,
       name: customName,
@@ -102,6 +122,7 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
       defaultSets: 3,
     };
     onAddCustomExercise(newEx);
+    Alert.alert('Success', `${customName} added to exercise library`);
     setCustomName('');
     setIsCustomModalOpen(false);
   };
@@ -194,14 +215,29 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
 
       {/* Exercise Picker Modal */}
       <Modal visible={showExercisePicker} animationType="slide">
-        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.modalContainer} edges={['top']}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select Exercise</Text>
-            <TouchableOpacity onPress={() => setShowExercisePicker(false)}>
-              <X size={24} color="#71717a" />
-            </TouchableOpacity>
+            <View style={styles.modalHeaderActions}>
+              <TouchableOpacity
+                style={styles.createCustomButton}
+                onPress={() => {
+                  setShowExercisePicker(false);
+                  setIsCustomModalOpen(true);
+                }}
+              >
+                <Plus size={16} color="#06b6d4" />
+                <Text style={styles.createCustomText}>Custom</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => setShowExercisePicker(false)}
+                style={styles.closeButton}
+              >
+                <X size={24} color="#71717a" />
+              </TouchableOpacity>
+            </View>
           </View>
-          <ScrollView style={styles.modalScroll}>
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
             {availableExercises.map(ex => (
               <TouchableOpacity
                 key={ex.id}
@@ -231,16 +267,56 @@ const RoutineBuilder: React.FC<RoutineBuilderProps> = ({
                 <X size={20} color="#71717a" />
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={styles.customInput}
-              value={customName}
-              onChangeText={setCustomName}
-              placeholder="Exercise Name"
-              placeholderTextColor="#52525b"
-            />
-            <TouchableOpacity style={styles.createButton} onPress={handleCreateCustom}>
-              <Text style={styles.createButtonText}>Create Exercise</Text>
-            </TouchableOpacity>
+            
+            <View style={styles.customModalBody}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>EXERCISE NAME</Text>
+                <TextInput
+                  style={styles.customInput}
+                  value={customName}
+                  onChangeText={setCustomName}
+                  placeholder="e.g. Smith Machine Squat"
+                  placeholderTextColor="#52525b"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>MUSCLE GROUP</Text>
+                <View style={styles.muscleGroupGrid}>
+                  {muscleGroups.map(muscle => (
+                    <TouchableOpacity
+                      key={muscle}
+                      style={[
+                        styles.muscleButton,
+                        customMuscle === muscle && styles.muscleButtonActive,
+                      ]}
+                      onPress={() => setCustomMuscle(muscle)}
+                    >
+                      <Text
+                        style={[
+                          styles.muscleButtonText,
+                          customMuscle === muscle && styles.muscleButtonTextActive,
+                        ]}
+                      >
+                        {muscle}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.customModalActions}>
+              <TouchableOpacity
+                style={styles.customCancelButton}
+                onPress={() => setIsCustomModalOpen(false)}
+              >
+                <Text style={styles.customCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.createButton} onPress={handleCreateCustom}>
+                <Text style={styles.createButtonText}>Create Exercise</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -257,7 +333,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(9, 9, 11, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: '#27272a',
-    padding: 16,
+    paddingTop: 64,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -415,6 +493,35 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#27272a',
+    backgroundColor: '#09090b',
+  },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: -12,
+  },
+  createCustomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  createCustomText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#06b6d4',
   },
   modalTitle: {
     fontSize: 20,
@@ -423,6 +530,9 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     flex: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 100,
   },
   exerciseOption: {
     flexDirection: 'row',
@@ -455,7 +565,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#27272a',
     borderRadius: 16,
-    padding: 24,
     width: '100%',
     maxWidth: 400,
   },
@@ -463,12 +572,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
   },
   customModalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  customModalBody: {
+    padding: 20,
+    gap: 20,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    textTransform: 'uppercase',
   },
   customInput: {
     backgroundColor: '#27272a',
@@ -478,18 +602,60 @@ const styles = StyleSheet.create({
     padding: 12,
     color: '#fff',
     fontSize: 14,
-    marginBottom: 16,
+  },
+  muscleGroupGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  muscleButton: {
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  muscleButtonActive: {
+    backgroundColor: '#06b6d4',
+    borderColor: '#06b6d4',
+  },
+  muscleButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#71717a',
+  },
+  muscleButtonTextActive: {
+    color: '#000',
+  },
+  customModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
+  },
+  customCancelButton: {
+    flex: 1,
+    padding: 12,
+    alignItems: 'center',
+  },
+  customCancelText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#71717a',
   },
   createButton: {
+    flex: 1,
     backgroundColor: '#06b6d4',
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
   },
   createButtonText: {
-    color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#000',
   },
 });
 

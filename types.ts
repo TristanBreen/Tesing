@@ -75,6 +75,15 @@ export type MealPreset = {
   fats: number;
 };
 
+export type UserProfile = {
+  age: number;
+  heightFeet: number;
+  heightInches: number;
+  weightLbs: number;
+  gender: 'male' | 'female' | 'other';
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+};
+
 export type UserGoals = {
   dailyCalories: number;
   dailyProtein: number;
@@ -113,4 +122,13 @@ export type UserPreferences = {
   enablePRNotifications: boolean;
   minRecoveryHours: number;
   deloadFrequency: number;
+};
+
+export type BodyMetrics = {
+  bmi: number;
+  bmiCategory: 'underweight' | 'normal' | 'overweight' | 'obese';
+  tdee: number;
+  bmr: number;
+  leanBodyMass: number;
+  bodyweightMultiplier: number; // For exercise strength standards
 };

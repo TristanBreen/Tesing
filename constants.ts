@@ -1,4 +1,4 @@
-import { ExerciseTemplate, UserGoals, WorkoutSession, MuscleGroup, MuscleRecoveryState, WeeklyVolume, ExerciseProgress } from './types';
+import { ExerciseTemplate, UserGoals, WorkoutSession, MuscleGroup, MuscleRecoveryState, WeeklyVolume, ExerciseProgress, UserProfile, BodyMetrics } from './types';
 
 export const MASTER_EXERCISE_LIST: ExerciseTemplate[] = [
   // Chest
@@ -47,6 +47,15 @@ export const INITIAL_TEMPLATE_IDS = [
   'rdl'
 ];
 
+export const DEFAULT_PROFILE: UserProfile = {
+  age: 25,
+  heightFeet: 5,
+  heightInches: 10,
+  weightLbs: 170,
+  gender: 'male',
+  activityLevel: 'moderate',
+};
+
 export const DEFAULT_GOALS: UserGoals = {
   dailyCalories: 2500,
   dailyProtein: 180,
@@ -60,6 +69,103 @@ export const EXERCISE_DB = MASTER_EXERCISE_LIST.map(e => ({
     targetMuscle: e.muscleGroup,
     defaultSets: e.defaultSets
 }));
+
+// Body Metric Calculations
+export const calculateBodyMetrics = (profile: UserProfile): BodyMetrics => {
+  const heightInches = (profile.heightFeet * 12) + profile.heightInches;
+  const heightCm = heightInches * 2.54;
+  const heightM = heightCm / 100;
+  const weightKg = profile.weightLbs * 0.453592;
+  
+  // BMI
+  const bmi = weightKg / (heightM * heightM);
+  let bmiCategory: 'underweight' | 'normal' | 'overweight' | 'obese';
+  if (bmi < 18.5) bmiCategory = 'underweight';
+  else if (bmi < 25) bmiCategory = 'normal';
+  else if (bmi < 30) bmiCategory = 'overweight';
+  else bmiCategory = 'obese';
+  
+  // BMR (Mifflin-St Jeor Equation)
+  let bmr: number;
+  if (profile.gender === 'male') {
+    bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * profile.age) + 5;
+  } else {
+    bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * profile.age) - 161;
+  }
+  
+  // TDEE (Total Daily Energy Expenditure)
+  const activityMultipliers = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9,
+  };
+  const tdee = Math.round(bmr * activityMultipliers[profile.activityLevel]);
+  
+  // Lean Body Mass (Boer Formula)
+  let leanBodyMass: number;
+  if (profile.gender === 'male') {
+    leanBodyMass = (0.407 * weightKg) + (0.267 * heightCm) - 19.2;
+  } else {
+    leanBodyMass = (0.252 * weightKg) + (0.473 * heightCm) - 48.3;
+  }
+  
+  // Adjust for activity level (more active = more muscle mass)
+  const activityMultiplierLBM = {
+    sedentary: 0.9,
+    light: 0.95,
+    moderate: 1.0,
+    active: 1.05,
+    very_active: 1.1,
+  };
+  leanBodyMass = leanBodyMass * activityMultiplierLBM[profile.activityLevel];
+  leanBodyMass = leanBodyMass * 2.20462; // Convert to lbs
+  
+  // Bodyweight multiplier for strength standards
+  const bodyweightMultiplier = profile.weightLbs / 170; // Normalized to 170lb person
+  
+  return {
+    bmi: Math.round(bmi * 10) / 10,
+    bmiCategory,
+    tdee,
+    bmr: Math.round(bmr),
+    leanBodyMass: Math.round(leanBodyMass),
+    bodyweightMultiplier,
+  };
+};
+
+// Protein recommendation based on lean body mass
+export const calculateProteinTarget = (profile: UserProfile, metrics: BodyMetrics): number => {
+  // 0.8-1g per lb of lean body mass for hypertrophy
+  return Math.round(metrics.leanBodyMass * 1);
+};
+
+// Strength standards based on body weight
+export const getStrengthStandard = (
+  exerciseId: string,
+  bodyweight: number,
+  gender: 'male' | 'female' | 'other'
+): { beginner: number; intermediate: number; advanced: number } | null => {
+  const standards: Record<string, { male: number[]; female: number[] }> = {
+    'bench-press': { male: [0.5, 1.0, 1.5], female: [0.3, 0.7, 1.0] },
+    'squat': { male: [0.75, 1.5, 2.0], female: [0.5, 1.0, 1.5] },
+    'rdl': { male: [0.75, 1.25, 2.0], female: [0.5, 1.0, 1.5] },
+    'ohp': { male: [0.4, 0.75, 1.0], female: [0.25, 0.5, 0.75] },
+    'barbell-row': { male: [0.5, 1.0, 1.5], female: [0.3, 0.7, 1.0] },
+  };
+  
+  const standard = standards[exerciseId];
+  if (!standard) return null;
+  
+  const multipliers = gender === 'female' ? standard.female : standard.male;
+  
+  return {
+    beginner: Math.round(bodyweight * multipliers[0]),
+    intermediate: Math.round(bodyweight * multipliers[1]),
+    advanced: Math.round(bodyweight * multipliers[2]),
+  };
+};
 
 export const calculate1RM = (weight: number, reps: number): number => {
   if (weight === 0 || reps === 0) return 0;

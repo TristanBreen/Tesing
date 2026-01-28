@@ -13,7 +13,7 @@ import { useAsyncStorage } from '../hooks/useAsyncStorage';
 import { MacroDay, UserGoals, MealPreset } from '../types';
 import { DEFAULT_GOALS, formatDate } from '../constants';
 import { Plus, Flame, ChevronLeft, ChevronRight, Calendar, BookOpen } from './Icons';
-// import MealPresets from './MealPresets';
+import MealPresets from './MealPresets';
 
 const NutritionLog = () => {
   const [goals] = useAsyncStorage<UserGoals>('hl-user-goals', DEFAULT_GOALS);

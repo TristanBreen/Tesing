@@ -36,7 +36,6 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [rating, setRating] = useState(3);
   const [notes, setNotes] = useState('');
-  const [swapModalOpen, setSwapModalOpen] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -195,9 +194,14 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
             <Text style={styles.timerText}>{formatTimer(elapsedSeconds)}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.finishButton} onPress={() => setShowFinishModal(true)}>
-          <Text style={styles.finishButtonText}>Finish</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.finishButton} onPress={() => setShowFinishModal(true)}>
+            <Text style={styles.finishButtonText}>Finish</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.closeButtonHeader} onPress={onClose}>
+            <X size={24} color="#71717a" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
@@ -331,11 +335,6 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
           );
         })}
       </ScrollView>
-
-      {/* Close Button */}
-      <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-        <X size={24} color="#71717a" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -373,16 +372,29 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     marginLeft: 4,
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   finishButton: {
     backgroundColor: '#06b6d4',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   finishButtonText: {
     color: '#000',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  closeButtonHeader: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
@@ -566,17 +578,6 @@ const styles = StyleSheet.create({
     color: '#71717a',
     textTransform: 'uppercase',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(24, 24, 27, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   finishModal: {
     flex: 1,
     padding: 24,
@@ -671,6 +672,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginTop: 16,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   saveButtonText: {
     color: '#000',
