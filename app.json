@@ -26,7 +26,14 @@
       "package": "com.hypertrophylab.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "display": "standalone",
+      "config": {
+        "ios": {
+          "appleMobileWebAppCapable": "yes",
+          "appleMobileWebAppStatusBarStyle": "black-translucent"
+        }
+      }
     },
     "extra": {
       "eas": {
