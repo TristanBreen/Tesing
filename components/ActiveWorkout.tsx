@@ -165,10 +165,9 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
                 onChangeText={setNotes}
                 placeholder="How did it feel? Energy levels? Pain?"
                 placeholderTextColor="#52525b"
-                multiline
-                numberOfLines={4}
                 onSubmitEditing={() => Keyboard.dismiss()}
                 returnKeyType="done"
+                blurOnSubmit={true}
               />
             </View>
 
@@ -351,7 +350,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(9, 9, 11, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: '#27272a',
-    padding: 16,
+    paddingTop: 32,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
