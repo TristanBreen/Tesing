@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Switch,
+  Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAsyncStorage } from '../hooks/useAsyncStorage';
 import { UserGoals, UserPreferences } from '../types';
 import { DEFAULT_GOALS } from '../constants';
-import { Save, Trash, Timer } from './Icons';
+import { Save, Trash, Timer, Download, Upload } from './Icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SettingsProps {
@@ -46,6 +49,45 @@ const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
     setGoals(localGoals);
     setPrefs(localPrefs);
     Alert.alert('Success', 'Settings saved successfully');
+  };
+
+  const handleExportData = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const stores = await AsyncStorage.multiGet(keys);
+      
+      const exportData: Record<string, any> = {};
+      stores.forEach(([key, value]) => {
+        if (key.startsWith('hl-')) {
+          try {
+            exportData[key] = JSON.parse(value || '');
+          } catch {
+            exportData[key] = value;
+          }
+        }
+      });
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      
+      // Use Share API (works on both iOS and Android)
+      await Share.share({
+        message: jsonString,
+        title: 'Hypertrophy Lab Backup',
+      });
+
+      Alert.alert('Success', 'Data exported successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to export data');
+      console.error('Export error:', error);
+    }
+  };
+
+  const handleImportData = () => {
+    Alert.alert(
+      'Import Data',
+      'Import functionality requires file picker. For now, you can manually restore from exported JSON by resetting and re-entering data.',
+      [{ text: 'OK' }]
+    );
   };
 
   const handleReset = () => {
@@ -184,6 +226,62 @@ const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            <View style={styles.preference}>
+              <View style={styles.switchRow}>
+                <Text style={styles.preferenceLabel}>Auto-Start Timer</Text>
+                <Switch
+                  value={localPrefs.autoStartTimer}
+                  onValueChange={(value) =>
+                    setLocalPrefs({ ...localPrefs, autoStartTimer: value })
+                  }
+                  trackColor={{ false: '#27272a', true: '#06b6d4' }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <Text style={styles.preferenceDescription}>
+                Automatically start rest timer after completing a set
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Recovery Parameters */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>RECOVERY PARAMETERS</Text>
+          <View style={styles.card}>
+            <View style={styles.preference}>
+              <View style={styles.sliderHeader}>
+                <Text style={styles.preferenceLabel}>Min Recovery Hours</Text>
+                <Text style={styles.sliderValue}>{localPrefs.minRecoveryHours}H</Text>
+              </View>
+              <View style={styles.sliderButtons}>
+                {[24, 36, 48, 60, 72, 84, 96].map(hours => (
+                  <TouchableOpacity
+                    key={hours}
+                    style={[
+                      styles.sliderButton,
+                      localPrefs.minRecoveryHours === hours && styles.sliderButtonActive,
+                    ]}
+                    onPress={() =>
+                      setLocalPrefs({ ...localPrefs, minRecoveryHours: hours })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.sliderButtonText,
+                        localPrefs.minRecoveryHours === hours && styles.sliderButtonTextActive,
+                      ]}
+                    >
+                      {hours}h
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.preferenceDescription}>
+                Minimum hours before a muscle group is considered recovered
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -196,6 +294,23 @@ const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
         {/* Data Management */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>DATA MANAGEMENT</Text>
+          <View style={styles.dataManagementGrid}>
+            <TouchableOpacity 
+              style={styles.dataButton} 
+              onPress={handleExportData}
+            >
+              <Download size={24} color="#e4e4e7" />
+              <Text style={styles.dataButtonText}>Export Data</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.dataButton} 
+              onPress={handleImportData}
+            >
+              <Upload size={24} color="#71717a" />
+              <Text style={[styles.dataButtonText, { color: '#71717a' }]}>Import Data</Text>
+            </TouchableOpacity>
+          </View>
+          
           <TouchableOpacity style={styles.dangerButton} onPress={handleReset}>
             <Trash size={20} color="#ef4444" />
             <Text style={styles.dangerButtonText}>Reset All Data</Text>
@@ -203,7 +318,7 @@ const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Hypertrophy Lab v1.2.0</Text>
+          <Text style={styles.footerText}>Hypertrophy Lab v1.3.0</Text>
           <Text style={styles.footerText}>Made with Science 💪</Text>
         </View>
       </ScrollView>
@@ -269,7 +384,6 @@ const styles = StyleSheet.create({
     padding: 12,
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'monospace',
   },
   preference: {
     gap: 12,
@@ -282,6 +396,17 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 14,
     color: '#d4d4d8',
+    fontWeight: '500',
+  },
+  preferenceDescription: {
+    fontSize: 12,
+    color: '#71717a',
+    lineHeight: 16,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   timerOptions: {
     flexDirection: 'row',
@@ -332,6 +457,41 @@ const styles = StyleSheet.create({
   unitButtonTextActive: {
     color: '#000',
   },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sliderValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#06b6d4',
+  },
+  sliderButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sliderButton: {
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  sliderButtonActive: {
+    backgroundColor: '#06b6d4',
+    borderColor: '#06b6d4',
+  },
+  sliderButtonText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#71717a',
+  },
+  sliderButtonTextActive: {
+    color: '#000',
+  },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,6 +506,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
+  },
+  dataManagementGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  dataButton: {
+    flex: 1,
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  dataButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#e4e4e7',
   },
   dangerButton: {
     flexDirection: 'row',

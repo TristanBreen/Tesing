@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAsyncStorage } from '../hooks/useAsyncStorage';
-import { MacroDay, UserGoals } from '../types';
+import { MacroDay, UserGoals, MealPreset } from '../types';
 import { DEFAULT_GOALS, formatDate } from '../constants';
-import { Plus, Flame, ChevronLeft, ChevronRight, Calendar } from './Icons';
+import { Plus, Flame, ChevronLeft, ChevronRight, Calendar, BookOpen } from './Icons';
+// import MealPresets from './MealPresets';
 
 const NutritionLog = () => {
   const [goals] = useAsyncStorage<UserGoals>('hl-user-goals', DEFAULT_GOALS);
@@ -21,6 +22,7 @@ const NutritionLog = () => {
     {}
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showMealPresets, setShowMealPresets] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
 
   const getDateKey = (date: Date) => date.toISOString().split('T')[0];
@@ -77,11 +79,34 @@ const NutritionLog = () => {
     setIsModalOpen(false);
   };
 
+  const handleLogPresetMeal = (meal: MealPreset) => {
+    updateLog({
+      protein: currentLog.protein + meal.protein,
+      calories: currentLog.calories + meal.calories,
+      carbs: currentLog.carbs + meal.carbs,
+      fats: currentLog.fats + meal.fats,
+    });
+    setShowMealPresets(false);
+  };
+
+  if (showMealPresets) {
+    return <MealPresets onLogMeal={handleLogPresetMeal} />;
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header with Date Navigation */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Fuel</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Fuel</Text>
+          <TouchableOpacity
+            style={styles.presetsButton}
+            onPress={() => setShowMealPresets(true)}
+          >
+            <BookOpen size={20} color="#06b6d4" />
+            <Text style={styles.presetsButtonText}>Presets</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.dateNav}>
           <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateButton}>
             <ChevronLeft size={20} color="#a1a1aa" />
@@ -280,11 +305,32 @@ const styles = StyleSheet.create({
     borderBottomColor: '#27272a',
     padding: 16,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 12,
+  },
+  presetsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  presetsButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#06b6d4',
   },
   dateNav: {
     flexDirection: 'row',

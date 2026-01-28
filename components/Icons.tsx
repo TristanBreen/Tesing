@@ -123,3 +123,33 @@ export const Calendar = ({ size = 24, color = '#fff' }: IconProps) => (
     <Line x1="3" y1="10" x2="21" y2="10" />
   </Svg>
 );
+
+export const Download = ({ size = 24, color = '#fff' }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
+    <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <Polyline points="7 10 12 15 17 10" />
+    <Line x1="12" y1="15" x2="12" y2="3" />
+  </Svg>
+);
+
+export const Upload = ({ size = 24, color = '#fff' }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
+    <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <Polyline points="17 8 12 3 7 8" />
+    <Line x1="12" y1="3" x2="12" y2="15" />
+  </Svg>
+);
+
+export const Edit = ({ size = 24, color = '#fff' }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
+    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </Svg>
+);
+
+export const BookOpen = ({ size = 24, color = '#fff' }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
+    <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <Path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </Svg>
+);

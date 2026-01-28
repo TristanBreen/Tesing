@@ -13,7 +13,7 @@ import RoutineBuilder from './components/RoutineBuilder';
 import NutritionLog from './components/NutritionLog';
 import Settings from './components/Settings';
 
-// Icons (we'll use simple text for now, or you can install react-native-vector-icons)
+// Icons
 import { Home, Dumbbell, Activity, Flame, Settings as SettingsIcon } from './components/Icons';
 
 const Tab = createBottomTabNavigator();
@@ -164,6 +164,9 @@ export default function App() {
                 activeSession={activeSession}
                 onDeleteRoutine={deleteRoutine}
                 onDeleteSession={deleteSession}
+                availableExercises={allExercises}
+                onSaveRoutine={saveRoutine}
+                onAddCustomExercise={addCustomExercise}
               />
             )}
           </Tab.Screen>
