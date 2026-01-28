@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WorkoutSession, SetLog, ExerciseTemplate } from '../types';
@@ -166,9 +167,7 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
                 placeholderTextColor="#52525b"
                 multiline
                 numberOfLines={4}
-                onSubmitEditing={() => {
-                  // Close keyboard on Enter
-                }}
+                onSubmitEditing={() => Keyboard.dismiss()}
                 returnKeyType="done"
               />
             </View>
