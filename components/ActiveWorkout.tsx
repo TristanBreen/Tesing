@@ -166,6 +166,10 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
                 placeholderTextColor="#52525b"
                 multiline
                 numberOfLines={4}
+                onSubmitEditing={() => {
+                  // Close keyboard on Enter
+                }}
+                returnKeyType="done"
               />
             </View>
 
