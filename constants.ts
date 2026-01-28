@@ -1,7 +1,5 @@
 import { ExerciseTemplate, UserGoals, WorkoutSession, MuscleGroup, MuscleRecoveryState, WeeklyVolume, ExerciseProgress } from './types';
 
-// --- Data ---
-
 export const MASTER_EXERCISE_LIST: ExerciseTemplate[] = [
   // Chest
   { id: 'bench-press', name: 'Barbell Bench Press', muscleGroup: 'Chest', type: 'Compound', defaultSets: 3 },
@@ -56,8 +54,6 @@ export const DEFAULT_GOALS: UserGoals = {
   dailyFats: 70
 };
 
-// Compatibility for existing code that uses EXERCISE_DB
-// We map the new structure to the old one where necessary, but mostly they are compatible
 export const EXERCISE_DB = MASTER_EXERCISE_LIST.map(e => ({
     id: e.id,
     name: e.name,
@@ -65,9 +61,6 @@ export const EXERCISE_DB = MASTER_EXERCISE_LIST.map(e => ({
     defaultSets: e.defaultSets
 }));
 
-// --- Science Utils ---
-
-// Epley Formula: w * (1 + r/30)
 export const calculate1RM = (weight: number, reps: number): number => {
   if (weight === 0 || reps === 0) return 0;
   if (reps === 1) return weight;
@@ -88,10 +81,7 @@ export const formatDate = (dateString: string): string => {
 
 export const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- Advanced Metrics Helpers ---
-
 export const getWeightRecommendation = (exerciseId: string, history: WorkoutSession[]): number | null => {
-  // Get last session with this exercise
   const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const lastSession = sortedHistory.find(s => s.exercises.some(e => e.exerciseId === exerciseId));
   
@@ -100,7 +90,6 @@ export const getWeightRecommendation = (exerciseId: string, history: WorkoutSess
   const exerciseLog = lastSession.exercises.find(e => e.exerciseId === exerciseId);
   if (!exerciseLog) return null;
 
-  // Check criteria: All sets completed, Average RPE < 8
   const validSets = exerciseLog.sets.filter(s => s.weight > 0 && s.reps > 0);
   if (validSets.length === 0) return null;
 
@@ -108,10 +97,8 @@ export const getWeightRecommendation = (exerciseId: string, history: WorkoutSess
   const avgRPE = validSets.reduce((acc, s) => acc + (s.rpe || 0), 0) / validSets.length;
 
   if (allCompleted && avgRPE < 8) {
-     // Check if compound or isolation to decide increment
      const def = MASTER_EXERCISE_LIST.find(e => e.id === exerciseId);
      const increment = (def?.type === 'Compound' || def?.type === 'Machine') ? 5 : 2.5; 
-     // Return suggested WEIGHT ADDITION
      return increment;
   }
   return null;
@@ -133,14 +120,10 @@ export const getMax1RM = (exerciseId: string, history: WorkoutSession[]): number
   return max;
 };
 
-// --- Science Tab Calculations ---
-
-// Calculate muscle recovery state
 export const calculateMuscleRecovery = (
   history: WorkoutSession[],
   muscleGroup: MuscleGroup
 ): MuscleRecoveryState => {
-  // Find last session that trained this muscle
   const relevantSessions = [...history]
     .filter(s => s.exercises.some(e => e.targetMuscle === muscleGroup))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -171,7 +154,7 @@ export const calculateMuscleRecovery = (
   } else if (hoursSince < 48) {
     fatigueStatus = 'recovering';
     recommendedAction = 'light-only';
-  } else if (hoursSince < 168) { // 7 days
+  } else if (hoursSince < 168) {
     fatigueStatus = 'recovered';
     recommendedAction = 'ready';
   } else {
@@ -189,7 +172,6 @@ export const calculateMuscleRecovery = (
   };
 };
 
-// Calculate weekly volume per muscle
 export const calculateWeeklyVolume = (
   history: WorkoutSession[],
   muscleGroup: MuscleGroup
@@ -206,7 +188,6 @@ export const calculateWeeklyVolume = (
     return acc + muscleSets;
   }, 0);
 
-  // Recommended ranges based on muscle group
   const ranges: Record<string, [number, number]> = {
     'Chest': [10, 20],
     'Back': [10, 20],
@@ -214,7 +195,7 @@ export const calculateWeeklyVolume = (
     'Shoulders': [8, 16],
     'Arms': [8, 16],
     'Abs': [6, 12],
-    'Cardio': [0, 999] // Ignore limits
+    'Cardio': [0, 999]
   };
 
   const range = ranges[muscleGroup] || [10, 20];
@@ -232,12 +213,10 @@ export const calculateWeeklyVolume = (
   };
 };
 
-// Analyze exercise progress
 export const analyzeExerciseProgress = (
   history: WorkoutSession[],
   exerciseId: string
 ): ExerciseProgress | null => {
-  // Get last 3 sessions containing this exercise
   const sessions = [...history]
     .filter(s => s.exercises.some(e => e.exerciseId === exerciseId))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -252,7 +231,6 @@ export const analyzeExerciseProgress = (
       .reduce((sum, s) => sum + calculateVolumeLoad(s.weight, s.reps), 0);
   });
 
-  // Determine trend
   let trend: 'increasing' | 'plateaued' | 'decreasing';
   if (volumes.every((v, i) => i === 0 || v >= volumes[i - 1])) {
     trend = 'increasing';
@@ -262,15 +240,11 @@ export const analyzeExerciseProgress = (
     trend = 'decreasing';
   }
 
-  // Generate recommendation
   let recommendation = '';
   if (trend === 'increasing') recommendation = 'Great! Try +5lbs next session';
   else if (trend === 'plateaued') recommendation = 'Add 1 rep per set or increase weight';
   else recommendation = 'Consider reducing volume or taking a deload';
 
-  // Fallback name lookup from master or assuming it's passed down? 
-  // Ideally we would pass the name in or look it up.
-  // We'll rely on the history data having the name.
   const exerciseName = sessions[0].exercises.find(e => e.exerciseId === exerciseId)?.name || 'Unknown Exercise';
 
   return {

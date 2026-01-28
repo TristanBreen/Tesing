@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Repeat, CheckCircle2, Info, Trophy, TrendingUp, Timer, Star, X } from 'lucide-react';
-import { WorkoutSession, SetLog, ExerciseDefinition, ExerciseTemplate } from '../types';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { WorkoutSession, SetLog, ExerciseTemplate } from '../types';
 import { generateId, getWeightRecommendation, calculate1RM, getMax1RM } from '../constants';
-import RestTimer from './RestTimer';
+import { Plus, X, Check, Trophy, TrendingUp, Timer, Star } from './Icons';
 
 interface ActiveWorkoutProps {
   session: WorkoutSession;
@@ -10,42 +20,42 @@ interface ActiveWorkoutProps {
   onUpdateSession: (session: WorkoutSession) => void;
   onFinish: () => void;
   availableExercises: ExerciseTemplate[];
+  onClose: () => void;
 }
 
-const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({ session, history, onUpdateSession, onFinish, availableExercises }) => {
-  const [lastCompletedTime, setLastCompletedTime] = useState<number | null>(null);
-  const [swapModalOpen, setSwapModalOpen] = useState<string | null>(null);
+const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
+  session,
+  history,
+  onUpdateSession,
+  onFinish,
+  availableExercises,
+  onClose,
+}) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [newPRs, setNewPRs] = useState<string[]>([]);
-  
-  // Finish Modal State
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [rating, setRating] = useState(3);
   const [notes, setNotes] = useState('');
+  const [swapModalOpen, setSwapModalOpen] = useState<string | null>(null);
 
-  // --- Effects ---
-
-  // Timer
   useEffect(() => {
-      const interval = setInterval(() => {
-          setElapsedSeconds(s => s + 1);
-          // Also update session duration in state occasionally or on finish
-          // For now we keep local and update on finish
-      }, 1000);
-      return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      setElapsedSeconds(s => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  // --- Logic ---
-
   const getPreviousStats = (exerciseId: string, setIndex: number): string => {
-    const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedHistory = [...history].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
     for (const pastSession of sortedHistory) {
       if (pastSession.id === session.id) continue;
       const exercise = pastSession.exercises.find(e => e.exerciseId === exerciseId);
       if (exercise && exercise.sets[setIndex]) {
         const s = exercise.sets[setIndex];
         if (s.completed) {
-            return `${s.weight}lbs x ${s.reps}`;
+          return `${s.weight}lbs x ${s.reps}`;
         }
       }
     }
@@ -56,16 +66,13 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({ session, history, onUpdat
     const newExercises = [...session.exercises];
     const currentExercise = newExercises[exerciseIdx];
     const currentSet = currentExercise.sets[setIdx];
-    
-    // Update value
+
     newExercises[exerciseIdx].sets[setIdx] = {
       ...currentSet,
-      [field]: value
+      [field]: value,
     };
-    
-    // Auto-trigger timer if completing
+
     if (field === 'completed' && value === true) {
-      setLastCompletedTime(Date.now());
       checkPR(currentExercise.exerciseId, currentSet.weight, currentSet.reps);
     }
 
@@ -73,28 +80,27 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({ session, history, onUpdat
   };
 
   const checkPR = (exerciseId: string, weight: number, reps: number) => {
-      if (!weight || !reps) return;
-      const current1RM = calculate1RM(weight, reps);
-      const historicalMax = getMax1RM(exerciseId, history);
-      
-      // We only celebrate if it's strictly greater and significantly valid (>0)
-      if (current1RM > historicalMax && historicalMax > 0) {
-          if(!newPRs.includes(exerciseId)) {
-            setNewPRs(prev => [...prev, exerciseId]);
-            // Could trigger a mini toast here
-          }
+    if (!weight || !reps) return;
+    const current1RM = calculate1RM(weight, reps);
+    const historicalMax = getMax1RM(exerciseId, history);
+
+    if (current1RM > historicalMax && historicalMax > 0) {
+      if (!newPRs.includes(exerciseId)) {
+        setNewPRs(prev => [...prev, exerciseId]);
       }
+    }
   };
 
   const addSet = (exerciseIdx: number) => {
     const newExercises = [...session.exercises];
-    const previousSet = newExercises[exerciseIdx].sets[newExercises[exerciseIdx].sets.length - 1];
+    const previousSet =
+      newExercises[exerciseIdx].sets[newExercises[exerciseIdx].sets.length - 1];
     newExercises[exerciseIdx].sets.push({
       id: generateId(),
       weight: previousSet ? previousSet.weight : 0,
       reps: previousSet ? previousSet.reps : 0,
       rpe: 8,
-      completed: false
+      completed: false,
     });
     onUpdateSession({ ...session, exercises: newExercises });
   };
@@ -105,293 +111,572 @@ const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({ session, history, onUpdat
     onUpdateSession({ ...session, exercises: newExercises });
   };
 
-  const swapExercise = (currentExerciseIdx: number, newExerciseDef: ExerciseTemplate) => {
-    const newExercises = [...session.exercises];
-    const newSets: SetLog[] = Array.from({ length: newExerciseDef.defaultSets }).map(() => ({
-      id: generateId(),
-      weight: 0,
-      reps: 0,
-      rpe: 8,
-      completed: false
-    }));
-
-    newExercises[currentExerciseIdx] = {
-      exerciseId: newExerciseDef.id,
-      name: newExerciseDef.name,
-      targetMuscle: newExerciseDef.muscleGroup,
-      sets: newSets,
-      notes: ''
-    };
-
-    onUpdateSession({ ...session, exercises: newExercises });
-    setSwapModalOpen(null);
-  };
-
   const handleFinish = () => {
-      // Update session with final details
-      onUpdateSession({
-          ...session,
-          duration: elapsedSeconds,
-          rating: rating,
-          generalNotes: notes
-      });
-      onFinish(); // Trigger parent finish
+    onUpdateSession({
+      ...session,
+      duration: elapsedSeconds,
+      rating: rating,
+      generalNotes: notes,
+    });
+    onFinish();
   };
-
-  // --- Render Helpers ---
 
   const formatTimer = (sec: number) => {
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const renderSwapModal = () => {
-    if (!swapModalOpen) return null;
-    const currentEx = session.exercises.find(e => e.exerciseId === swapModalOpen);
-    if (!currentEx) return null;
-    const currentIdx = session.exercises.indexOf(currentEx);
-
-    const alternatives = availableExercises.filter(
-        db => db.muscleGroup === currentEx.targetMuscle && db.id !== currentEx.exerciseId
-    );
-
-    return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div className="bg-surface border border-zinc-800 w-full max-w-sm rounded-2xl overflow-hidden max-h-[80vh] flex flex-col">
-          <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900">
-            <h3 className="font-bold text-lg text-white">Swap {currentEx.name}</h3>
-            <button onClick={() => setSwapModalOpen(null)}><X className="w-5 h-5 text-zinc-500" /></button>
-          </div>
-          <div className="overflow-y-auto flex-1">
-             {alternatives.length === 0 && (
-                 <div className="p-6 text-center text-zinc-500">No alternatives found for {currentEx.targetMuscle}.</div>
-             )}
-             {alternatives.map(alt => (
-                 <button
-                    key={alt.id}
-                    onClick={() => swapExercise(currentIdx, alt)}
-                    className="w-full text-left p-4 hover:bg-zinc-800 border-b border-zinc-800/50 flex flex-col group"
-                 >
-                     <span className="font-semibold text-zinc-300 group-hover:text-primary">{alt.name}</span>
-                     <span className="text-xs text-zinc-500">{alt.muscleGroup} • {alt.type}</span>
-                 </button>
-             ))}
-          </div>
-        </div>
-      </div>
-    );
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   if (showFinishModal) {
-      return (
-          <div className="fixed inset-0 z-50 bg-background flex flex-col p-6 animate-in slide-in-from-bottom-10">
-              <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-bold text-white">Session Complete</h2>
-                  <button onClick={() => setShowFinishModal(false)}><X className="w-6 h-6 text-zinc-500" /></button>
-              </div>
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.finishModal}>
+          <View style={styles.finishHeader}>
+            <Text style={styles.finishTitle}>Session Complete</Text>
+            <TouchableOpacity onPress={() => setShowFinishModal(false)}>
+              <X size={24} color="#71717a" />
+            </TouchableOpacity>
+          </View>
 
-              <div className="space-y-6">
-                  <div>
-                      <label className="text-sm font-bold text-zinc-400 uppercase tracking-wider block mb-3">Session Rating</label>
-                      <div className="flex gap-2">
-                          {[1,2,3,4,5].map(r => (
-                              <button 
-                                key={r}
-                                onClick={() => setRating(r)}
-                                className={`flex-1 h-14 rounded-xl flex items-center justify-center border transition-all ${rating >= r ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500' : 'bg-zinc-900 border-zinc-800 text-zinc-700'}`}
-                              >
-                                  <Star className={`w-6 h-6 ${rating >= r ? 'fill-yellow-500' : ''}`} />
-                              </button>
-                          ))}
-                      </div>
-                  </div>
-
-                  <div>
-                      <label className="text-sm font-bold text-zinc-400 uppercase tracking-wider block mb-2">Session Notes</label>
-                      <textarea 
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="How did it feel? Energy levels? Pain?"
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white h-32 focus:outline-none focus:border-primary"
-                      />
-                  </div>
-
-                  <div className="bg-surface border border-zinc-800 rounded-xl p-4 flex justify-between items-center">
-                      <span className="text-zinc-400 font-medium">Duration</span>
-                      <span className="text-xl font-mono font-bold text-white">{formatTimer(elapsedSeconds)}</span>
-                  </div>
-
-                  <button 
-                    onClick={handleFinish}
-                    className="w-full py-4 bg-primary text-black font-bold text-lg rounded-full mt-4"
+          <View style={styles.finishContent}>
+            <View style={styles.ratingSection}>
+              <Text style={styles.ratingLabel}>SESSION RATING</Text>
+              <View style={styles.ratingButtons}>
+                {[1, 2, 3, 4, 5].map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[
+                      styles.ratingButton,
+                      rating >= r && styles.ratingButtonActive,
+                    ]}
+                    onPress={() => setRating(r)}
                   >
-                      Save Workout
-                  </button>
-              </div>
-          </div>
-      );
+                    <Star size={24} color={rating >= r ? '#eab308' : '#3f3f46'} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.notesSection}>
+              <Text style={styles.notesLabel}>SESSION NOTES</Text>
+              <TextInput
+                style={styles.notesInput}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="How did it feel? Energy levels? Pain?"
+                placeholderTextColor="#52525b"
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+
+            <View style={styles.durationCard}>
+              <Text style={styles.durationLabel}>Duration</Text>
+              <Text style={styles.durationValue}>{formatTimer(elapsedSeconds)}</Text>
+            </View>
+
+            <TouchableOpacity style={styles.saveButton} onPress={handleFinish}>
+              <Text style={styles.saveButtonText}>Save Workout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
-    <div className="pb-32">
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-zinc-800 p-4 flex justify-between items-center shadow-md">
-            <div className="flex flex-col">
-                <h1 className="text-lg font-bold text-white leading-tight">{session.name}</h1>
-                <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 mt-0.5">
-                    <Timer className="w-3 h-3" /> {formatTimer(elapsedSeconds)}
-                </div>
-            </div>
-            <button 
-                onClick={() => setShowFinishModal(true)}
-                className="bg-primary text-background font-bold px-5 py-2 rounded-full hover:bg-cyan-400 transition-colors text-sm"
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>{session.name}</Text>
+          <View style={styles.timerRow}>
+            <Timer size={12} color="#71717a" />
+            <Text style={styles.timerText}>{formatTimer(elapsedSeconds)}</Text>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.finishButton} onPress={() => setShowFinishModal(true)}>
+          <Text style={styles.finishButtonText}>Finish</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {session.exercises.map((exercise, exIdx) => {
+          const recommendation = getWeightRecommendation(exercise.exerciseId, history);
+          const isPRActive = newPRs.includes(exercise.exerciseId);
+
+          return (
+            <View
+              key={exercise.exerciseId + exIdx}
+              style={[
+                styles.exerciseCard,
+                isPRActive && styles.exerciseCardPR,
+              ]}
             >
-                Finish
-            </button>
-        </div>
+              {/* Exercise Header */}
+              <View style={styles.exerciseHeader}>
+                <View style={styles.exerciseHeaderLeft}>
+                  <View style={styles.exerciseNameRow}>
+                    <Text style={styles.exerciseName}>{exercise.name}</Text>
+                    {isPRActive && <Trophy size={16} color="#eab308" />}
+                  </View>
+                  <View style={styles.exerciseTags}>
+                    <View style={styles.muscleTag}>
+                      <Text style={styles.muscleTagText}>{exercise.targetMuscle}</Text>
+                    </View>
+                    {recommendation && (
+                      <View style={styles.recTag}>
+                        <TrendingUp size={12} color="#22c55e" />
+                        <Text style={styles.recTagText}>+{recommendation}lbs</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
 
-        {/* Exercises List */}
-        <div className="p-4 space-y-6">
-            {session.exercises.map((exercise, exIdx) => {
-                const recommendation = getWeightRecommendation(exercise.exerciseId, history);
-                const isPRActive = newPRs.includes(exercise.exerciseId);
+              {/* Notes */}
+              <TextInput
+                style={styles.notesTextInput}
+                value={exercise.notes || ''}
+                onChangeText={text => updateNotes(exIdx, text)}
+                placeholder="Add exercise notes..."
+                placeholderTextColor="#52525b"
+                multiline
+              />
 
+              {/* Sets Header */}
+              <View style={styles.setsHeader}>
+                <Text style={styles.setsHeaderText}>#</Text>
+                <Text style={[styles.setsHeaderText, { flex: 1 }]}>LBS</Text>
+                <Text style={[styles.setsHeaderText, { flex: 1 }]}>REPS</Text>
+                <Text style={[styles.setsHeaderText, { flex: 0.6 }]}>RPE</Text>
+                <Text style={[styles.setsHeaderText, { width: 32 }]}></Text>
+              </View>
+
+              {/* Sets */}
+              {exercise.sets.map((set, setIdx) => {
+                const prevData = getPreviousStats(exercise.exerciseId, setIdx);
                 return (
-                <div key={exercise.exerciseId + exIdx} className={`bg-surface rounded-2xl p-1 border shadow-sm transition-all ${isPRActive ? 'border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]' : 'border-zinc-800/50'}`}>
-                    {/* Card Header */}
-                    <div className="p-4 flex justify-between items-start">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-bold text-white leading-tight">{exercise.name}</h2>
-                                {isPRActive && <Trophy className="w-4 h-4 text-yellow-500 animate-bounce" />}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] text-secondary bg-secondary/10 px-2 py-0.5 rounded font-bold uppercase">
-                                    {exercise.targetMuscle}
-                                </span>
-                                {recommendation && (
-                                    <div className="flex items-center gap-1 text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded font-bold border border-green-400/20">
-                                        <TrendingUp className="w-3 h-3" />
-                                        Rec: +{recommendation}lbs
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => setSwapModalOpen(exercise.exerciseId)}
-                            className="p-2 text-zinc-500 hover:text-primary transition-colors"
-                        >
-                            <Repeat className="w-4 h-4" />
-                        </button>
-                    </div>
+                  <View
+                    key={set.id}
+                    style={[styles.setRow, set.completed && styles.setRowCompleted]}
+                  >
+                    <View style={styles.setNumber}>
+                      <Text style={styles.setNumberText}>{setIdx + 1}</Text>
+                    </View>
 
-                    {/* Notes Area */}
-                    <div className="px-4 mb-4">
-                        <textarea
-                            placeholder="Add exercise notes..."
-                            value={exercise.notes || ''}
-                            onChange={(e) => updateNotes(exIdx, e.target.value)}
-                            className="w-full bg-zinc-900/50 text-zinc-300 text-xs p-3 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder-zinc-700 border border-transparent focus:border-zinc-700"
-                            rows={1}
-                        />
-                    </div>
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={[styles.input, set.completed && styles.inputCompleted]}
+                        value={set.weight ? set.weight.toString() : ''}
+                        onChangeText={text =>
+                          updateSet(exIdx, setIdx, 'weight', parseFloat(text) || 0)
+                        }
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#52525b"
+                      />
+                      <Text style={styles.ghostText}>{prevData.split('x')[0]}</Text>
+                    </View>
 
-                    {/* Grid Header */}
-                    <div className="grid grid-cols-10 gap-2 px-2 text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 text-center">
-                        <div className="col-span-1">#</div>
-                        <div className="col-span-3">Lbs</div>
-                        <div className="col-span-3">Reps</div>
-                        <div className="col-span-2">RPE</div>
-                        <div className="col-span-1"></div>
-                    </div>
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={[styles.input, set.completed && styles.inputCompleted]}
+                        value={set.reps ? set.reps.toString() : ''}
+                        onChangeText={text =>
+                          updateSet(exIdx, setIdx, 'reps', parseFloat(text) || 0)
+                        }
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#52525b"
+                      />
+                      <Text style={styles.ghostText}>
+                        {prevData.includes('x') ? prevData.split('x')[1] : '-'}
+                      </Text>
+                    </View>
 
-                    {/* Sets */}
-                    <div className="space-y-2 px-2 pb-4">
-                        {exercise.sets.map((set, setIdx) => {
-                            const prevData = getPreviousStats(exercise.exerciseId, setIdx);
-                            return (
-                                <div key={set.id} className={`relative grid grid-cols-10 gap-2 items-center transition-all ${set.completed ? 'opacity-50 grayscale-[0.5]' : ''}`}>
-                                    
-                                    {/* Set Number */}
-                                    <div className="col-span-1 flex justify-center">
-                                        <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">
-                                            {setIdx + 1}
-                                        </div>
-                                    </div>
+                    <TextInput
+                      style={[styles.inputSmall, set.completed && styles.inputCompleted]}
+                      value={set.rpe ? set.rpe.toString() : ''}
+                      onChangeText={text =>
+                        updateSet(exIdx, setIdx, 'rpe', parseFloat(text) || 0)
+                      }
+                      keyboardType="numeric"
+                      placeholder="8"
+                      placeholderTextColor="#52525b"
+                      maxLength={2}
+                    />
 
-                                    {/* Weight Input + Ghost */}
-                                    <div className="col-span-3 relative">
-                                        <input
-                                            type="number"
-                                            value={set.weight || ''}
-                                            onChange={(e) => updateSet(exIdx, setIdx, 'weight', parseFloat(e.target.value))}
-                                            className={`w-full bg-zinc-900 rounded-md py-3 text-center text-lg font-bold focus:ring-1 focus:ring-primary focus:outline-none ${set.completed ? 'text-zinc-500' : 'text-white'}`}
-                                            placeholder="0"
-                                        />
-                                        <div className="absolute -bottom-3 left-0 w-full text-center text-[9px] text-zinc-600 font-mono">
-                                            {prevData.split('x')[0]}
-                                        </div>
-                                    </div>
+                    <TouchableOpacity
+                      style={[
+                        styles.checkButton,
+                        set.completed && styles.checkButtonCompleted,
+                      ]}
+                      onPress={() =>
+                        updateSet(exIdx, setIdx, 'completed', !set.completed)
+                      }
+                    >
+                      <Check size={20} color={set.completed ? '#000' : '#52525b'} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
 
-                                    {/* Reps Input + Ghost */}
-                                    <div className="col-span-3 relative">
-                                        <input
-                                            type="number"
-                                            value={set.reps || ''}
-                                            onChange={(e) => updateSet(exIdx, setIdx, 'reps', parseFloat(e.target.value))}
-                                            className={`w-full bg-zinc-900 rounded-md py-3 text-center text-lg font-bold focus:ring-1 focus:ring-primary focus:outline-none ${set.completed ? 'text-zinc-500' : 'text-white'}`}
-                                            placeholder="0"
-                                        />
-                                        <div className="absolute -bottom-3 left-0 w-full text-center text-[9px] text-zinc-600 font-mono">
-                                            {prevData.includes('x') ? prevData.split('x')[1] : '-'}
-                                        </div>
-                                    </div>
+              {/* Add Set Button */}
+              <TouchableOpacity style={styles.addSetButton} onPress={() => addSet(exIdx)}>
+                <Plus size={16} color="#71717a" />
+                <Text style={styles.addSetText}>ADD SET</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </ScrollView>
 
-                                    {/* RPE Input */}
-                                    <div className="col-span-2">
-                                        <input
-                                            type="number"
-                                            value={set.rpe || ''}
-                                            onChange={(e) => updateSet(exIdx, setIdx, 'rpe', parseFloat(e.target.value))}
-                                            className={`w-full bg-zinc-900 rounded-md py-3 text-center text-lg font-bold focus:ring-1 focus:ring-primary focus:outline-none ${set.completed ? 'text-zinc-500' : 'text-secondary'}`}
-                                            placeholder="8"
-                                            max={10}
-                                        />
-                                    </div>
-
-                                    {/* Completion Checkbox */}
-                                    <div className="col-span-1 flex justify-center">
-                                        <button 
-                                            onClick={() => updateSet(exIdx, setIdx, 'completed', !set.completed)}
-                                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${set.completed ? 'bg-primary text-background' : 'bg-zinc-800 text-zinc-600 hover:bg-zinc-700'}`}
-                                        >
-                                            <CheckCircle2 className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Add Set Button */}
-                    <div className="px-2 pb-4">
-                        <button 
-                            onClick={() => addSet(exIdx)}
-                            className="w-full py-2 bg-zinc-900/50 hover:bg-zinc-800 rounded-lg text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" /> Add Set
-                        </button>
-                    </div>
-                </div>
-            )})}
-        </div>
-        
-        <div className="h-12"></div>
-        <RestTimer lastCompleted={lastCompletedTime} />
-        {renderSwapModal()}
-    </div>
+      {/* Close Button */}
+      <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+        <X size={24} color="#71717a" />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#09090b',
+  },
+  header: {
+    backgroundColor: 'rgba(9, 9, 11, 0.95)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  timerText: {
+    fontSize: 12,
+    color: '#71717a',
+    fontFamily: 'monospace',
+    marginLeft: 4,
+  },
+  finishButton: {
+    backgroundColor: '#06b6d4',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  finishButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  exerciseCard: {
+    backgroundColor: '#18181b',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(39, 39, 42, 0.5)',
+    padding: 4,
+    marginBottom: 24,
+  },
+  exerciseCardPR: {
+    borderColor: 'rgba(234, 179, 8, 0.5)',
+  },
+  exerciseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 12,
+  },
+  exerciseHeaderLeft: {
+    flex: 1,
+  },
+  exerciseNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exerciseName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  exerciseTags: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  muscleTag: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  muscleTagText: {
+    fontSize: 10,
+    color: '#8b5cf6',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  recTag: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  recTagText: {
+    fontSize: 10,
+    color: '#22c55e',
+    fontWeight: 'bold',
+  },
+  notesTextInput: {
+    backgroundColor: 'rgba(39, 39, 42, 0.5)',
+    color: '#d4d4d8',
+    fontSize: 12,
+    padding: 12,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 8,
+    minHeight: 36,
+  },
+  setsHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    gap: 8,
+  },
+  setsHeaderText: {
+    fontSize: 10,
+    color: '#71717a',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    width: 32,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+  },
+  setRowCompleted: {
+    opacity: 0.5,
+  },
+  setNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  setNumberText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a1a1aa',
+  },
+  inputContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  input: {
+    backgroundColor: '#27272a',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  inputCompleted: {
+    color: '#71717a',
+  },
+  inputSmall: {
+    backgroundColor: '#27272a',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8b5cf6',
+    textAlign: 'center',
+    flex: 0.6,
+  },
+  ghostText: {
+    position: 'absolute',
+    bottom: -12,
+    left: 0,
+    right: 0,
+    fontSize: 9,
+    color: '#52525b',
+    fontFamily: 'monospace',
+    textAlign: 'center',
+  },
+  checkButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkButtonCompleted: {
+    backgroundColor: '#06b6d4',
+  },
+  addSetButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(39, 39, 42, 0.5)',
+    padding: 12,
+    marginHorizontal: 8,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  addSetText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    textTransform: 'uppercase',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(24, 24, 27, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  finishModal: {
+    flex: 1,
+    padding: 24,
+  },
+  finishHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  finishTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  finishContent: {
+    gap: 24,
+  },
+  ratingSection: {
+    gap: 12,
+  },
+  ratingLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a1a1aa',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  ratingButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ratingButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ratingButtonActive: {
+    backgroundColor: 'rgba(234, 179, 8, 0.2)',
+    borderColor: '#eab308',
+  },
+  notesSection: {
+    gap: 8,
+  },
+  notesLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a1a1aa',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  notesInput: {
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 14,
+    minHeight: 128,
+    textAlignVertical: 'top',
+  },
+  durationCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  durationLabel: {
+    fontSize: 14,
+    color: '#a1a1aa',
+    fontWeight: '500',
+  },
+  durationValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    fontFamily: 'monospace',
+  },
+  saveButton: {
+    backgroundColor: '#06b6d4',
+    borderRadius: 24,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  saveButtonText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+});
 
 export default ActiveWorkout;

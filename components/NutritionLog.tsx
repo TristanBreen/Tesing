@@ -1,20 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { Plus, Flame, Utensils, Zap, ChevronLeft, ChevronRight, Bookmark, Trash2, Calendar, Coffee } from 'lucide-react';
-import { MacroDay, UserGoals, MealPreset } from '../types';
-import { DEFAULT_GOALS, formatDate, generateId } from '../constants';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAsyncStorage } from '../hooks/useAsyncStorage';
+import { MacroDay, UserGoals } from '../types';
+import { DEFAULT_GOALS, formatDate } from '../constants';
+import { Plus, Flame, ChevronLeft, ChevronRight, Calendar } from './Icons';
 
 const NutritionLog = () => {
-  const [goals, setGoals] = useLocalStorage<UserGoals>('hl-user-goals', DEFAULT_GOALS);
-  const [logs, setLogs] = useLocalStorage<Record<string, MacroDay>>('hl-nutrition-logs', {});
-  const [presets, setPresets] = useLocalStorage<MealPreset[]>('hl-meal-presets', []);
+  const [goals] = useAsyncStorage<UserGoals>('hl-user-goals', DEFAULT_GOALS);
+  const [logs, setLogs] = useAsyncStorage<Record<string, MacroDay>>(
+    'hl-nutrition-logs',
+    {}
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Date Navigation State
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Helpers
   const getDateKey = (date: Date) => date.toISOString().split('T')[0];
   const currentKey = getDateKey(viewDate);
   const isToday = currentKey === getDateKey(new Date());
@@ -25,14 +33,13 @@ const NutritionLog = () => {
     setViewDate(newDate);
   };
 
-  // Get Log for Selected Date
   const currentLog = logs[currentKey] || {
     date: new Date(viewDate).toISOString(),
     calories: 0,
     protein: 0,
     carbs: 0,
     fats: 0,
-    isRefeed: false
+    isRefeed: false,
   };
 
   const updateLog = (updates: Partial<MacroDay>) => {
@@ -40,303 +47,514 @@ const NutritionLog = () => {
     setLogs({ ...logs, [currentKey]: newLog });
   };
 
-  const toggleRefeed = () => {
-    const isRefeed = !currentLog.isRefeed;
-    updateLog({ isRefeed });
-  };
+  const proteinPercent = Math.min(
+    100,
+    Math.round((currentLog.protein / goals.dailyProtein) * 100)
+  );
 
-  const deletePreset = (id: string) => {
-      if(window.confirm('Remove this saved meal?')) {
-          setPresets(presets.filter(p => p.id !== id));
-      }
-  };
+  const [tempProtein, setTempProtein] = useState('');
+  const [tempCalories, setTempCalories] = useState('');
+  const [tempCarbs, setTempCarbs] = useState('');
+  const [tempFats, setTempFats] = useState('');
 
-  const addPresetToLog = (preset: MealPreset) => {
-      updateLog({
-          calories: currentLog.calories + preset.calories,
-          protein: currentLog.protein + preset.protein,
-          carbs: currentLog.carbs + preset.carbs,
-          fats: currentLog.fats + preset.fats
-      });
-  };
+  const handleAddMeal = () => {
+    const p = Number(tempProtein) || 0;
+    const c = Number(tempCalories) || 0;
+    const carb = Number(tempCarbs) || 0;
+    const f = Number(tempFats) || 0;
 
-  // --- Visuals ---
-  const proteinPercent = Math.min(100, Math.round((currentLog.protein / goals.dailyProtein) * 100));
-  
-  const chartData = [
-    { name: 'Protein', value: currentLog.protein * 4, color: '#3b82f6' }, // Blue
-    { name: 'Carbs', value: currentLog.carbs * 4, color: '#eab308' }, // Yellow
-    { name: 'Fats', value: currentLog.fats * 9, color: '#ef4444' }, // Red
-  ];
-  const activeChartData = chartData.filter(d => d.value > 0);
-  if (activeChartData.length === 0) activeChartData.push({ name: 'Empty', value: 1, color: '#27272a' });
+    updateLog({
+      protein: currentLog.protein + p,
+      calories: currentLog.calories + c,
+      carbs: currentLog.carbs + carb,
+      fats: currentLog.fats + f,
+    });
 
-  // Weekly Surplus/Deficit (Last 7 days from TODAY, not viewDate)
-  const calculateWeeklyBalance = () => {
-    let balance = 0;
-    const days = 7;
-    for (let i = 0; i < days; i++) {
-        const d = new Date(); // Always relative to real today
-        d.setDate(d.getDate() - i);
-        const key = getDateKey(d);
-        const log = logs[key];
-        if (log) {
-            balance += (log.calories - goals.dailyCalories);
-        }
-    }
-    return balance;
+    setTempProtein('');
+    setTempCalories('');
+    setTempCarbs('');
+    setTempFats('');
+    setIsModalOpen(false);
   };
-  const weeklyBalance = calculateWeeklyBalance();
 
   return (
-    <div className="pb-24 animate-in fade-in duration-500">
-      
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header with Date Navigation */}
-      <div className="bg-gradient-to-b from-blue-900/20 to-background p-4 border-b border-zinc-800 sticky top-0 z-10 backdrop-blur-md">
-        <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                Fuel <span className="text-xs font-normal text-zinc-500 bg-zinc-900 px-2 py-1 rounded-full border border-zinc-800">History</span>
-            </h1>
-            <div className="flex items-center gap-3 bg-zinc-900/80 rounded-full px-3 py-1 border border-zinc-800">
-                <button onClick={() => changeDate(-1)} className="text-zinc-400 hover:text-white"><ChevronLeft className="w-5 h-5" /></button>
-                <div className="flex items-center gap-2 min-w-[100px] justify-center">
-                    <Calendar className="w-3 h-3 text-primary" />
-                    <span className="text-sm font-bold text-zinc-200">
-                        {isToday ? 'Today' : formatDate(viewDate.toISOString())}
-                    </span>
-                </div>
-                <button onClick={() => changeDate(1)} className="text-zinc-400 hover:text-white"><ChevronRight className="w-5 h-5" /></button>
-            </div>
-        </div>
-      </div>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Fuel</Text>
+        <View style={styles.dateNav}>
+          <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateButton}>
+            <ChevronLeft size={20} color="#a1a1aa" />
+          </TouchableOpacity>
+          <View style={styles.dateDisplay}>
+            <Calendar size={14} color="#06b6d4" />
+            <Text style={styles.dateText}>
+              {isToday ? 'Today' : formatDate(viewDate.toISOString())}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => changeDate(1)} style={styles.dateButton}>
+            <ChevronRight size={20} color="#a1a1aa" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      <div className="p-4 space-y-6">
-        
+      <ScrollView contentContainerStyle={styles.content}>
         {/* Protein Pacer */}
-        <div className="bg-surface rounded-2xl border border-zinc-800 p-5 relative overflow-hidden">
-            <div className="flex justify-between items-end mb-2 relative z-10">
-                <div>
-                    <div className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">Protein Pacer</div>
-                    <div className="text-3xl font-bold text-white">
-                        {currentLog.protein} <span className="text-lg text-zinc-500 font-normal">/ {goals.dailyProtein}g</span>
-                    </div>
-                </div>
-                <div className="text-blue-400 font-mono font-bold">{proteinPercent}%</div>
-            </div>
-            <div className="h-3 w-full bg-zinc-900 rounded-full overflow-hidden">
-                <div 
-                    className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-1000 ease-out"
-                    style={{ width: `${proteinPercent}%` }}
-                ></div>
-            </div>
-            {/* Background Texture */}
-            <Utensils className="absolute -right-4 -bottom-4 w-32 h-32 text-zinc-800/50 -rotate-12 pointer-events-none" />
-        </div>
+        <View style={styles.proteinCard}>
+          <View style={styles.proteinHeader}>
+            <View>
+              <Text style={styles.proteinLabel}>PROTEIN PACER</Text>
+              <View style={styles.proteinValues}>
+                <Text style={styles.proteinCurrent}>{currentLog.protein}</Text>
+                <Text style={styles.proteinGoal}> / {goals.dailyProtein}g</Text>
+              </View>
+            </View>
+            <Text style={styles.proteinPercent}>{proteinPercent}%</Text>
+          </View>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${proteinPercent}%` },
+              ]}
+            />
+          </View>
+        </View>
 
-        {/* Calorie Bank & Refeed */}
-        <div className="grid grid-cols-2 gap-4">
-            <div className="bg-surface p-4 rounded-2xl border border-zinc-800">
-                <div className="flex items-center gap-2 mb-2">
-                    <Flame className={`w-5 h-5 ${currentLog.isRefeed ? 'text-orange-500 animate-pulse' : 'text-zinc-600'}`} />
-                    <span className="text-xs font-bold uppercase text-zinc-400">Refeed Day</span>
-                </div>
-                <button 
-                    onClick={toggleRefeed}
-                    className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${currentLog.isRefeed ? 'bg-orange-500/20 text-orange-500 border border-orange-500/50' : 'bg-zinc-900 text-zinc-500'}`}
-                >
-                    {currentLog.isRefeed ? 'ON' : 'OFF'}
-                </button>
-            </div>
-            <div className="bg-surface p-4 rounded-2xl border border-zinc-800">
-                <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-5 h-5 text-yellow-500" />
-                    <span className="text-xs font-bold uppercase text-zinc-400">7-Day Bank</span>
-                </div>
-                <div className={`text-xl font-mono font-bold ${weeklyBalance > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {weeklyBalance > 0 ? '+' : ''}{weeklyBalance} <span className="text-xs text-zinc-600">kcal</span>
-                </div>
-            </div>
-        </div>
+        {/* Calorie & Refeed */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <View style={styles.statHeader}>
+              <Flame size={20} color={currentLog.isRefeed ? '#f97316' : '#52525b'} />
+              <Text style={styles.statLabel}>Refeed Day</Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                currentLog.isRefeed && styles.toggleButtonActive,
+              ]}
+              onPress={() => updateLog({ isRefeed: !currentLog.isRefeed })}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  currentLog.isRefeed && styles.toggleTextActive,
+                ]}
+              >
+                {currentLog.isRefeed ? 'ON' : 'OFF'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* Macro Split Chart & Details */}
-        <div className="flex gap-4 items-center bg-surface p-4 rounded-2xl border border-zinc-800">
-            <div className="w-24 h-24 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                        <Pie
-                            data={activeChartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={30}
-                            outerRadius={40}
-                            paddingAngle={5}
-                            dataKey="value"
-                            stroke="none"
-                        >
-                            {activeChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                        </Pie>
-                    </PieChart>
-                </ResponsiveContainer>
-                {/* Center Label */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-[10px] font-bold text-zinc-500">Split</span>
-                </div>
-            </div>
-            <div className="flex-1 space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-2 text-zinc-300">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div> Protein
-                    </span>
-                    <span className="font-mono text-zinc-500">{currentLog.protein}g</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-2 text-zinc-300">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div> Carbs
-                    </span>
-                    <span className="font-mono text-zinc-500">{currentLog.carbs}g</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-2 text-zinc-300">
-                        <div className="w-2 h-2 rounded-full bg-red-500"></div> Fats
-                    </span>
-                    <span className="font-mono text-zinc-500">{currentLog.fats}g</span>
-                </div>
-                <div className="flex justify-between items-center text-sm pt-2 border-t border-zinc-800/50">
-                     <span className="flex items-center gap-2 text-zinc-300 font-bold">
-                        Calories
-                    </span>
-                    <span className="font-mono text-white font-bold">{currentLog.calories} / {goals.dailyCalories}</span>
-                </div>
-            </div>
-        </div>
+        {/* Macro Split */}
+        <View style={styles.macroCard}>
+          <Text style={styles.macroTitle}>Macro Split</Text>
+          <View style={styles.macroList}>
+            <View style={styles.macroItem}>
+              <View style={styles.macroLabel}>
+                <View style={[styles.macroDot, { backgroundColor: '#3b82f6' }]} />
+                <Text style={styles.macroName}>Protein</Text>
+              </View>
+              <Text style={styles.macroValue}>{currentLog.protein}g</Text>
+            </View>
+            <View style={styles.macroItem}>
+              <View style={styles.macroLabel}>
+                <View style={[styles.macroDot, { backgroundColor: '#eab308' }]} />
+                <Text style={styles.macroName}>Carbs</Text>
+              </View>
+              <Text style={styles.macroValue}>{currentLog.carbs}g</Text>
+            </View>
+            <View style={styles.macroItem}>
+              <View style={styles.macroLabel}>
+                <View style={[styles.macroDot, { backgroundColor: '#ef4444' }]} />
+                <Text style={styles.macroName}>Fats</Text>
+              </View>
+              <Text style={styles.macroValue}>{currentLog.fats}g</Text>
+            </View>
+            <View style={[styles.macroItem, styles.macroItemTotal]}>
+              <Text style={styles.macroNameBold}>Calories</Text>
+              <Text style={styles.macroValueBold}>
+                {currentLog.calories} / {goals.dailyCalories}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-        {/* Meal Presets Horizontal Scroll */}
-        <div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Bookmark className="w-3 h-3" /> Quick Add / Saved Meals
-            </h3>
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-                 {presets.map(preset => (
-                     <div key={preset.id} className="flex-shrink-0 relative group">
-                        <button 
-                            onClick={() => addPresetToLog(preset)}
-                            className="bg-zinc-900 border border-zinc-800 hover:border-primary/50 p-3 rounded-xl min-w-[120px] text-left transition-colors"
-                        >
-                            <div className="flex items-center gap-2 mb-1">
-                                <Coffee className="w-4 h-4 text-zinc-500" />
-                                <span className="font-bold text-zinc-200 text-sm truncate w-20">{preset.name}</span>
-                            </div>
-                            <div className="text-xs text-zinc-500 font-mono">
-                                {preset.protein}p • {preset.calories}cal
-                            </div>
-                        </button>
-                        <button 
-                            onClick={() => deletePreset(preset.id)}
-                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                            <Trash2 className="w-3 h-3" />
-                        </button>
-                     </div>
-                 ))}
-                 
-                 {/* Add New Trigger (Just opens modal for now, user can save there) */}
-                 <button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex-shrink-0 bg-zinc-900/50 border border-dashed border-zinc-700 hover:border-zinc-500 p-3 rounded-xl min-w-[100px] flex flex-col items-center justify-center text-zinc-500 gap-1"
-                 >
-                     <Plus className="w-5 h-5" />
-                     <span className="text-xs font-medium">New</span>
-                 </button>
-            </div>
-        </div>
-
-        {/* Full Add Trigger */}
-        <button 
-            onClick={() => setIsModalOpen(true)}
-            className="w-full py-4 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 font-medium hover:text-white hover:border-zinc-700 transition-all flex items-center justify-center gap-2"
+        {/* Add Meal Button */}
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setIsModalOpen(true)}
         >
-            <Plus className="w-5 h-5" /> Log Custom Meal
-        </button>
-
-      </div>
+          <Plus size={20} color="#a1a1aa" />
+          <Text style={styles.addButtonText}>Log Custom Meal</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Meal Modal */}
-      {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <div className="bg-surface border border-zinc-800 w-full max-w-sm rounded-2xl p-6 space-y-4 animate-in slide-in-from-bottom-10">
-                  <h3 className="text-xl font-bold text-white">Log Meal</h3>
-                  
-                  <div className="space-y-3">
-                      <div>
-                          <label className="text-xs text-zinc-500 uppercase font-bold">Protein (g)</label>
-                          <input type="number" placeholder="0" className="w-full bg-zinc-900 p-3 rounded-lg text-white border border-zinc-800 mt-1" id="m-prot" />
-                      </div>
-                      <div>
-                          <label className="text-xs text-zinc-500 uppercase font-bold">Calories</label>
-                          <input type="number" placeholder="0" className="w-full bg-zinc-900 p-3 rounded-lg text-white border border-zinc-800 mt-1" id="m-cals" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs text-zinc-500 uppercase font-bold">Carbs (g)</label>
-                            <input type="number" placeholder="0" className="w-full bg-zinc-900 p-3 rounded-lg text-white border border-zinc-800 mt-1" id="m-carbs" />
-                        </div>
-                        <div>
-                            <label className="text-xs text-zinc-500 uppercase font-bold">Fats (g)</label>
-                            <input type="number" placeholder="0" className="w-full bg-zinc-900 p-3 rounded-lg text-white border border-zinc-800 mt-1" id="m-fats" />
-                        </div>
-                      </div>
-                      
-                      {/* Save as Preset Option */}
-                      <div className="pt-2 border-t border-zinc-800">
-                          <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">Save as Preset (Optional)</label>
-                          <input type="text" placeholder="Meal Name (e.g. Chicken Rice)" className="w-full bg-zinc-900 p-3 rounded-lg text-white border border-zinc-800" id="m-name" />
-                      </div>
-                  </div>
+      <Modal visible={isModalOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Log Meal</Text>
+              <TouchableOpacity onPress={() => setIsModalOpen(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-                  <div className="flex gap-3 pt-2">
-                      <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-zinc-500 font-bold">Cancel</button>
-                      <button 
-                        onClick={() => {
-                            const p = Number((document.getElementById('m-prot') as HTMLInputElement).value) || 0;
-                            const c = Number((document.getElementById('m-cals') as HTMLInputElement).value) || 0;
-                            const carb = Number((document.getElementById('m-carbs') as HTMLInputElement).value) || 0;
-                            const f = Number((document.getElementById('m-fats') as HTMLInputElement).value) || 0;
-                            const name = (document.getElementById('m-name') as HTMLInputElement).value;
+            <View style={styles.modalInputs}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>PROTEIN (G)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={tempProtein}
+                  onChangeText={setTempProtein}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#52525b"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>CALORIES</Text>
+                <TextInput
+                  style={styles.input}
+                  value={tempCalories}
+                  onChangeText={setTempCalories}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#52525b"
+                />
+              </View>
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>CARBS (G)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={tempCarbs}
+                    onChangeText={setTempCarbs}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#52525b"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>FATS (G)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={tempFats}
+                    onChangeText={setTempFats}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#52525b"
+                  />
+                </View>
+              </View>
+            </View>
 
-                            // Update Log
-                            updateLog({
-                                protein: currentLog.protein + p,
-                                calories: currentLog.calories + c,
-                                carbs: currentLog.carbs + carb,
-                                fats: currentLog.fats + f
-                            });
-
-                            // Save Preset if Name exists
-                            if (name) {
-                                setPresets([...presets, {
-                                    id: generateId(),
-                                    name,
-                                    protein: p,
-                                    calories: c,
-                                    carbs: carb,
-                                    fats: f
-                                }]);
-                            }
-
-                            setIsModalOpen(false);
-                        }}
-                        className="flex-1 py-3 bg-primary text-black rounded-xl font-bold"
-                      >
-                          Add Log
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-    </div>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setIsModalOpen(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitButton} onPress={handleAddMeal}>
+                <Text style={styles.submitButtonText}>Add Log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#09090b',
+  },
+  header: {
+    backgroundColor: 'rgba(30, 58, 138, 0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
+    padding: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  dateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(39, 39, 42, 0.8)',
+    borderRadius: 20,
+    padding: 4,
+  },
+  dateButton: {
+    padding: 8,
+  },
+  dateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  dateText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#e4e4e7',
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  proteinCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  proteinHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  proteinLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a1a1aa',
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  proteinValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  proteinCurrent: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  proteinGoal: {
+    fontSize: 18,
+    color: '#71717a',
+  },
+  proteinPercent: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+    fontFamily: 'monospace',
+  },
+  progressBar: {
+    height: 12,
+    backgroundColor: '#27272a',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: 6,
+  },
+  statsGrid: {
+    marginBottom: 16,
+  },
+  statCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    padding: 16,
+  },
+  statHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a1a1aa',
+    textTransform: 'uppercase',
+  },
+  toggleButton: {
+    backgroundColor: '#27272a',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.5)',
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+  },
+  toggleTextActive: {
+    color: '#f97316',
+  },
+  macroCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  macroTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e4e4e7',
+    marginBottom: 12,
+  },
+  macroList: {
+    gap: 12,
+  },
+  macroItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  macroItemTotal: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(39, 39, 42, 0.5)',
+  },
+  macroLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  macroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  macroName: {
+    fontSize: 14,
+    color: '#d4d4d8',
+  },
+  macroNameBold: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#d4d4d8',
+  },
+  macroValue: {
+    fontSize: 14,
+    color: '#71717a',
+    fontFamily: 'monospace',
+  },
+  macroValueBold: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+    fontFamily: 'monospace',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 12,
+    padding: 16,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#a1a1aa',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#18181b',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#71717a',
+  },
+  modalInputs: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 12,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#71717a',
+  },
+  submitButton: {
+    flex: 1,
+    backgroundColor: '#06b6d4',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+});
 
 export default NutritionLog;

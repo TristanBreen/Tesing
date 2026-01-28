@@ -1,8 +1,19 @@
-import React from 'react';
-import { Trash2, Save, User, ArrowLeft, Download, Upload, Timer, Bell, Database, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAsyncStorage } from '../hooks/useAsyncStorage';
 import { UserGoals, UserPreferences } from '../types';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 import { DEFAULT_GOALS } from '../constants';
+import { Save, Trash, Timer } from './Icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SettingsProps {
   onBack: () => void;
@@ -10,184 +21,356 @@ interface SettingsProps {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-    defaultRestTimer: 90,
-    weightUnit: 'lbs',
-    autoStartTimer: true,
-    enablePRNotifications: true,
-    minRecoveryHours: 48,
-    deloadFrequency: 5
+  defaultRestTimer: 90,
+  weightUnit: 'lbs',
+  autoStartTimer: true,
+  enablePRNotifications: true,
+  minRecoveryHours: 48,
+  deloadFrequency: 5,
 };
 
 const Settings: React.FC<SettingsProps> = ({ onBack, onReset }) => {
-  const [goals, setGoals] = useLocalStorage<UserGoals>('hl-user-goals', DEFAULT_GOALS);
-  const [prefs, setPrefs] = useLocalStorage<UserPreferences>('hl-user-preferences', DEFAULT_PREFERENCES);
-  
-  // Local state for forms
-  const [localGoals, setLocalGoals] = React.useState(goals);
-  const [localPrefs, setLocalPrefs] = React.useState(prefs);
+  const [goals, setGoals] = useAsyncStorage<UserGoals>(
+    'hl-user-goals',
+    DEFAULT_GOALS
+  );
+  const [prefs, setPrefs] = useAsyncStorage<UserPreferences>(
+    'hl-user-preferences',
+    DEFAULT_PREFERENCES
+  );
+
+  const [localGoals, setLocalGoals] = useState(goals);
+  const [localPrefs, setLocalPrefs] = useState(prefs);
 
   const handleSave = () => {
     setGoals(localGoals);
     setPrefs(localPrefs);
-    alert('Settings saved.');
+    Alert.alert('Success', 'Settings saved successfully');
   };
 
-  const exportData = () => {
-      const data = {
-          history: localStorage.getItem('hl-history'),
-          routines: localStorage.getItem('hl-routines'),
-          nutrition: localStorage.getItem('hl-nutrition-logs'),
-          mealPresets: localStorage.getItem('hl-meal-presets'),
-          customExercises: localStorage.getItem('hl-custom-exercises'),
-          goals: localStorage.getItem('hl-user-goals'),
-          prefs: localStorage.getItem('hl-user-preferences')
-      };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `hypertrophy-lab-full-backup-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
+  const handleReset = () => {
+    Alert.alert(
+      'Reset All Data',
+      'Are you sure you want to wipe all data? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.clear();
+            Alert.alert('Success', 'All data has been reset');
+            onReset();
+          },
+        },
+      ]
+    );
   };
 
   return (
-    <div className="p-4 space-y-6 animate-in slide-in-from-right pb-32">
-       <div className="flex items-center gap-4 mb-2 mt-2">
-          {/* Back button hidden in tab view usually, but kept if accessed via modal logic in future */}
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-       </div>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+        </View>
 
-       {/* Section 1: User Profile */}
-       <div className="bg-surface p-4 rounded-2xl border border-zinc-800 space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-             <User className="w-5 h-5 text-primary" />
-             <h2 className="font-bold text-zinc-200">User Profile</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-             <div>
-                <label className="text-xs text-zinc-500 uppercase font-bold">Calories</label>
-                <input 
-                   type="number" 
-                   value={localGoals.dailyCalories}
-                   onChange={e => setLocalGoals({...localGoals, dailyCalories: Number(e.target.value)})}
-                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-white mt-1 font-mono"
+        {/* User Profile */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>USER PROFILE</Text>
+          <View style={styles.card}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>CALORIES</Text>
+                <TextInput
+                  style={styles.input}
+                  value={localGoals.dailyCalories.toString()}
+                  onChangeText={text =>
+                    setLocalGoals({
+                      ...localGoals,
+                      dailyCalories: Number(text) || 0,
+                    })
+                  }
+                  keyboardType="numeric"
                 />
-             </div>
-             <div>
-                <label className="text-xs text-zinc-500 uppercase font-bold">Protein (g)</label>
-                <input 
-                   type="number" 
-                   value={localGoals.dailyProtein}
-                   onChange={e => setLocalGoals({...localGoals, dailyProtein: Number(e.target.value)})}
-                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-white mt-1 font-mono"
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>PROTEIN (G)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={localGoals.dailyProtein.toString()}
+                  onChangeText={text =>
+                    setLocalGoals({
+                      ...localGoals,
+                      dailyProtein: Number(text) || 0,
+                    })
+                  }
+                  keyboardType="numeric"
                 />
-             </div>
-          </div>
-       </div>
+              </View>
+            </View>
+          </View>
+        </View>
 
-       {/* Section 2: Training Preferences */}
-       <div className="bg-surface p-4 rounded-2xl border border-zinc-800 space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-             <Timer className="w-5 h-5 text-primary" />
-             <h2 className="font-bold text-zinc-200">Training Preferences</h2>
-          </div>
-          
-          <div>
-              <label className="text-xs text-zinc-500 uppercase font-bold">Default Rest Timer</label>
-              <select 
-                value={localPrefs.defaultRestTimer}
-                onChange={e => setLocalPrefs({...localPrefs, defaultRestTimer: Number(e.target.value)})}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-white mt-1"
-              >
-                  <option value={60}>60 Seconds</option>
-                  <option value={90}>90 Seconds</option>
-                  <option value={120}>2 Minutes</option>
-                  <option value={180}>3 Minutes</option>
-              </select>
-          </div>
+        {/* Training Preferences */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>TRAINING PREFERENCES</Text>
+          <View style={styles.card}>
+            <View style={styles.preference}>
+              <View style={styles.preferenceHeader}>
+                <Timer size={20} color="#06b6d4" />
+                <Text style={styles.preferenceLabel}>Default Rest Timer</Text>
+              </View>
+              <View style={styles.timerOptions}>
+                {[60, 90, 120, 180].map(seconds => (
+                  <TouchableOpacity
+                    key={seconds}
+                    style={[
+                      styles.timerOption,
+                      localPrefs.defaultRestTimer === seconds &&
+                        styles.timerOptionActive,
+                    ]}
+                    onPress={() =>
+                      setLocalPrefs({ ...localPrefs, defaultRestTimer: seconds })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.timerOptionText,
+                        localPrefs.defaultRestTimer === seconds &&
+                          styles.timerOptionTextActive,
+                      ]}
+                    >
+                      {seconds}s
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-          <div className="flex items-center justify-between p-1">
-              <span className="text-sm text-zinc-300">Weight Unit</span>
-              <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                  <button 
-                    onClick={() => setLocalPrefs({...localPrefs, weightUnit: 'lbs'})}
-                    className={`px-3 py-1 rounded text-xs font-bold ${localPrefs.weightUnit === 'lbs' ? 'bg-primary text-black' : 'text-zinc-500'}`}
-                  >LBS</button>
-                  <button 
-                    onClick={() => setLocalPrefs({...localPrefs, weightUnit: 'kg'})}
-                    className={`px-3 py-1 rounded text-xs font-bold ${localPrefs.weightUnit === 'kg' ? 'bg-primary text-black' : 'text-zinc-500'}`}
-                  >KG</button>
-              </div>
-          </div>
-          
-           <div className="flex items-center justify-between p-1">
-              <span className="text-sm text-zinc-300">Auto-Start Timer</span>
-               <button 
-                onClick={() => setLocalPrefs({...localPrefs, autoStartTimer: !localPrefs.autoStartTimer})}
-                className={`w-10 h-6 rounded-full relative transition-colors ${localPrefs.autoStartTimer ? 'bg-green-500' : 'bg-zinc-700'}`}
-              >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${localPrefs.autoStartTimer ? 'left-5' : 'left-1'}`}></div>
-              </button>
-          </div>
-       </div>
+            <View style={styles.preference}>
+              <Text style={styles.preferenceLabel}>Weight Unit</Text>
+              <View style={styles.unitToggle}>
+                <TouchableOpacity
+                  style={[
+                    styles.unitButton,
+                    localPrefs.weightUnit === 'lbs' && styles.unitButtonActive,
+                  ]}
+                  onPress={() => setLocalPrefs({ ...localPrefs, weightUnit: 'lbs' })}
+                >
+                  <Text
+                    style={[
+                      styles.unitButtonText,
+                      localPrefs.weightUnit === 'lbs' && styles.unitButtonTextActive,
+                    ]}
+                  >
+                    LBS
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.unitButton,
+                    localPrefs.weightUnit === 'kg' && styles.unitButtonActive,
+                  ]}
+                  onPress={() => setLocalPrefs({ ...localPrefs, weightUnit: 'kg' })}
+                >
+                  <Text
+                    style={[
+                      styles.unitButtonText,
+                      localPrefs.weightUnit === 'kg' && styles.unitButtonTextActive,
+                    ]}
+                  >
+                    KG
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
 
-       {/* Section 3: Recovery Parameters */}
-       <div className="bg-surface p-4 rounded-2xl border border-zinc-800 space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-             <Shield className="w-5 h-5 text-primary" />
-             <h2 className="font-bold text-zinc-200">Recovery Parameters</h2>
-          </div>
-          <div>
-              <label className="text-xs text-zinc-500 uppercase font-bold flex justify-between">
-                  <span>Min Recovery Hours</span>
-                  <span className="text-primary">{localPrefs.minRecoveryHours}h</span>
-              </label>
-              <input 
-                type="range" 
-                min="24" 
-                max="72" 
-                step="12"
-                value={localPrefs.minRecoveryHours}
-                onChange={e => setLocalPrefs({...localPrefs, minRecoveryHours: Number(e.target.value)})}
-                className="w-full mt-2 accent-primary"
-              />
-          </div>
-       </div>
+        {/* Save Button */}
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Save size={20} color="#000" />
+          <Text style={styles.saveButtonText}>Save All Settings</Text>
+        </TouchableOpacity>
 
-       <button 
-            onClick={handleSave}
-            className="w-full py-4 bg-zinc-100 hover:bg-white rounded-xl font-bold text-black flex items-center justify-center gap-2 transition-colors"
-        >
-             <Save className="w-5 h-5" /> Save All Settings
-        </button>
+        {/* Data Management */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>DATA MANAGEMENT</Text>
+          <TouchableOpacity style={styles.dangerButton} onPress={handleReset}>
+            <Trash size={20} color="#ef4444" />
+            <Text style={styles.dangerButtonText}>Reset All Data</Text>
+          </TouchableOpacity>
+        </View>
 
-       {/* Section 4: Data Management */}
-       <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 mt-8">
-          <div className="flex items-center gap-2 mb-4">
-             <Database className="w-5 h-5 text-zinc-500" />
-             <h2 className="font-bold text-zinc-400">Data Management</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-              <button onClick={exportData} className="p-3 bg-zinc-800 rounded-xl text-xs font-bold text-zinc-300 flex flex-col items-center gap-2 hover:bg-zinc-700">
-                  <Download className="w-5 h-5" /> Export Data
-              </button>
-              <button className="p-3 bg-zinc-800 rounded-xl text-xs font-bold text-zinc-300 flex flex-col items-center gap-2 hover:bg-zinc-700 opacity-50 cursor-not-allowed">
-                  <Upload className="w-5 h-5" /> Import Data
-              </button>
-          </div>
-          <button 
-             onClick={onReset}
-             className="w-full mt-4 py-3 border border-red-500/30 text-red-500 rounded-xl font-bold hover:bg-red-500/10 flex items-center justify-center gap-2 transition-colors text-sm"
-          >
-             <Trash2 className="w-4 h-4" /> Reset All Data
-          </button>
-       </div>
-       
-       <div className="text-center text-xs text-zinc-600 mt-8 pb-8">
-          Hypertrophy Lab v1.2.0 • Made with Science 💪
-       </div>
-    </div>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Hypertrophy Lab v1.2.0</Text>
+          <Text style={styles.footerText}>Made with Science 💪</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#09090b',
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  header: {
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    marginBottom: 12,
+    letterSpacing: 1,
+  },
+  card: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    padding: 16,
+    gap: 16,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inputGroup: {
+    flex: 1,
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 12,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'monospace',
+  },
+  preference: {
+    gap: 12,
+  },
+  preferenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  preferenceLabel: {
+    fontSize: 14,
+    color: '#d4d4d8',
+  },
+  timerOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timerOption: {
+    flex: 1,
+    backgroundColor: '#27272a',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  timerOptionActive: {
+    backgroundColor: '#06b6d4',
+    borderColor: '#06b6d4',
+  },
+  timerOptionText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+  },
+  timerOptionTextActive: {
+    color: '#000',
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#27272a',
+    borderRadius: 8,
+    padding: 4,
+    gap: 4,
+  },
+  unitButton: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  unitButtonActive: {
+    backgroundColor: '#06b6d4',
+  },
+  unitButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+  },
+  unitButtonTextActive: {
+    color: '#000',
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#e4e4e7',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  dangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  dangerButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#ef4444',
+  },
+  footer: {
+    alignItems: 'center',
+    gap: 4,
+    paddingTop: 24,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#52525b',
+  },
+});
 
 export default Settings;

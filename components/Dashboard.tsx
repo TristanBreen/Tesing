@@ -1,7 +1,9 @@
 import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WorkoutSession, Routine } from '../types';
 import { formatDate } from '../constants';
-import { Play, ArrowRight, Plus, Dumbbell, Trash2, X } from 'lucide-react';
+import { Plus, Dumbbell, Trash, X } from './Icons';
 
 interface DashboardProps {
   history: WorkoutSession[];
@@ -15,124 +17,327 @@ interface DashboardProps {
   onDeleteSession: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ 
-  history, 
-  routines, 
-  onStartWorkout, 
-  onResume, 
-  onGoToBuilder, 
-  onOpenSettings, 
+const Dashboard: React.FC<DashboardProps> = ({
+  history,
+  routines,
+  onStartWorkout,
+  onResume,
+  onGoToBuilder,
   activeSession,
   onDeleteRoutine,
   onDeleteSession
 }) => {
+  const handleDeleteRoutine = (id: string, name: string) => {
+    Alert.alert(
+      'Delete Routine',
+      `Delete "${name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDeleteRoutine(id) }
+      ]
+    );
+  };
+
+  const handleDeleteSession = (id: string, name: string) => {
+    Alert.alert(
+      'Delete Workout',
+      `Delete "${name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDeleteSession(id) }
+      ]
+    );
+  };
+
   return (
-    <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Header */}
-      <div className="flex items-center justify-between mt-2">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
-          <p className="text-zinc-400 text-sm">Welcome to the Lab.</p>
-        </div>
-      </div>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Dashboard</Text>
+            <Text style={styles.subtitle}>Welcome to the Lab.</Text>
+          </View>
+        </View>
 
-      {/* Main Action - Resume or Builder */}
-      {activeSession ? (
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary/20 to-secondary/20 rounded-3xl p-1">
-          <div className="bg-surface/90 backdrop-blur-sm rounded-[20px] p-6 border border-white/5">
-              <h2 className="text-lg font-bold text-white mb-2">Session in Progress</h2>
-              <p className="text-sm text-zinc-400 mb-6">Continuing {activeSession.name}...</p>
-              <button 
-                  onClick={onResume}
-                  className="w-full h-14 bg-white text-black rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-zinc-200 transition-colors shadow-lg shadow-primary/10"
-              >
-                  <Play className="fill-black w-5 h-5" /> Resume Workout
-              </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-              <button 
-                onClick={onGoToBuilder}
-                className="bg-surface border border-zinc-800 hover:border-zinc-700 text-white p-5 rounded-2xl flex flex-row items-center gap-4 h-24 transition-colors relative overflow-hidden group"
-              >
-                  <div className="bg-zinc-800 w-12 h-12 rounded-full flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                    <Plus className="w-6 h-6" />
-                  </div>
-                  <div className="text-left">
-                      <div className="font-bold text-lg leading-tight">Builder</div>
-                      <div className="text-xs text-zinc-500 font-medium">Create New Routine</div>
-                  </div>
-              </button>
-          </div>
-      )}
+        {/* Active Session or Builder */}
+        {activeSession ? (
+          <View style={styles.activeCard}>
+            <View style={styles.activeCardInner}>
+              <Text style={styles.activeTitle}>Session in Progress</Text>
+              <Text style={styles.activeSubtitle}>Continuing {activeSession.name}...</Text>
+              <TouchableOpacity style={styles.resumeButton} onPress={onResume}>
+                <Text style={styles.resumeButtonText}>▶ Resume Workout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.builderCard} onPress={onGoToBuilder}>
+            <View style={styles.builderIcon}>
+              <Plus size={24} color="#06b6d4" />
+            </View>
+            <View style={styles.builderText}>
+              <Text style={styles.builderTitle}>Builder</Text>
+              <Text style={styles.builderSubtitle}>Create New Routine</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-      {/* Saved Routines */}
-      <div>
-        <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Your Routines</h3>
-        <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
+        {/* Saved Routines */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>YOUR ROUTINES</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.routinesScroll}>
             {routines.map(routine => (
-                <button 
-                    key={routine.id}
-                    onClick={() => onStartWorkout(routine)}
-                    className="flex-shrink-0 w-40 bg-surface p-4 rounded-xl border border-zinc-800 hover:border-primary/50 transition-colors text-left flex flex-col gap-2 group relative"
+              <View key={routine.id} style={styles.routineCard}>
+                <TouchableOpacity
+                  style={styles.routineDeleteButton}
+                  onPress={() => handleDeleteRoutine(routine.id, routine.name)}
                 >
-                    <div 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteRoutine(routine.id);
-                        }}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-zinc-900/50 flex items-center justify-center text-zinc-500 hover:text-red-500 hover:bg-zinc-900 transition-all z-10"
-                    >
-                        <X className="w-4 h-4" />
-                    </div>
-
-                    <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-zinc-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
-                        <Dumbbell className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <div className="font-bold text-zinc-200 truncate pr-4">{routine.name}</div>
-                        <div className="text-xs text-zinc-500">{routine.exercises.length} Exercises</div>
-                    </div>
-                </button>
+                  <X size={16} color="#71717a" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.routineContent}
+                  onPress={() => onStartWorkout(routine)}
+                >
+                  <View style={styles.routineIconContainer}>
+                    <Dumbbell size={16} color="#71717a" />
+                  </View>
+                  <Text style={styles.routineName} numberOfLines={1}>{routine.name}</Text>
+                  <Text style={styles.routineInfo}>{routine.exercises.length} Exercises</Text>
+                </TouchableOpacity>
+              </View>
             ))}
             {routines.length === 0 && (
-                <div className="text-sm text-zinc-500 italic p-2">No routines saved. Use the Builder!</div>
+              <Text style={styles.emptyText}>No routines saved. Use the Builder!</Text>
             )}
-        </div>
-      </div>
+          </ScrollView>
+        </View>
 
-      {/* Recent Logs */}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-white">Recent Logs</h3>
-        </div>
-        <div className="space-y-3">
-            {history.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500 bg-surface rounded-xl border border-zinc-800 border-dashed">
-                    No history found. Start lifting!
-                </div>
-            ) : (
-                [...history].reverse().slice(0, 5).map((session) => (
-                    <div key={session.id} className="bg-surface p-4 rounded-xl border border-zinc-800 flex justify-between items-center group">
-                        <div>
-                            <div className="font-bold text-zinc-200">{session.name}</div>
-                            <div className="text-xs text-zinc-500">{formatDate(session.date)} • {session.exercises.length} Exercises</div>
-                        </div>
-                        <button 
-                            onClick={() => onDeleteSession(session.id)}
-                            className="p-2 text-zinc-600 hover:text-red-500 transition-colors"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
-                    </div>
-                ))
-            )}
-        </div>
-      </div>
-    </div>
+        {/* Recent Logs */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>RECENT LOGS</Text>
+          {history.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No history found. Start lifting!</Text>
+            </View>
+          ) : (
+            [...history].reverse().slice(0, 5).map(session => (
+              <View key={session.id} style={styles.logCard}>
+                <View style={styles.logInfo}>
+                  <Text style={styles.logName}>{session.name}</Text>
+                  <Text style={styles.logDetails}>
+                    {formatDate(session.date)} • {session.exercises.length} Exercises
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleDeleteSession(session.id, session.name)}
+                  style={styles.deleteButton}
+                >
+                  <Trash size={20} color="#71717a" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#09090b',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#a1a1aa',
+    marginTop: 4,
+  },
+  activeCard: {
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+    borderRadius: 24,
+    padding: 1,
+    marginBottom: 16,
+  },
+  activeCardInner: {
+    backgroundColor: 'rgba(24, 24, 27, 0.9)',
+    borderRadius: 23,
+    padding: 24,
+  },
+  activeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  activeSubtitle: {
+    fontSize: 14,
+    color: '#a1a1aa',
+    marginBottom: 24,
+  },
+  resumeButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  resumeButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  builderCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  builderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  builderText: {
+    flex: 1,
+  },
+  builderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  builderSubtitle: {
+    fontSize: 12,
+    color: '#71717a',
+    marginTop: 2,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#71717a',
+    marginBottom: 12,
+    letterSpacing: 1,
+  },
+  routinesScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  routineCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 16,
+    width: 160,
+    position: 'relative',
+  },
+  routineDeleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 1,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(39, 39, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routineContent: {
+    paddingTop: 8,
+  },
+  routineIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#27272a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  routineName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e4e4e7',
+    marginBottom: 4,
+  },
+  routineInfo: {
+    fontSize: 12,
+    color: '#71717a',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#71717a',
+    fontStyle: 'italic',
+    padding: 8,
+  },
+  emptyCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    padding: 32,
+    alignItems: 'center',
+  },
+  logCard: {
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  logInfo: {
+    flex: 1,
+  },
+  logName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e4e4e7',
+    marginBottom: 4,
+  },
+  logDetails: {
+    fontSize: 12,
+    color: '#71717a',
+  },
+  deleteButton: {
+    padding: 8,
+  },
+});
 
 export default Dashboard;

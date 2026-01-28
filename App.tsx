@@ -1,6 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { useLocalStorage } from './hooks/useLocalStorage';
-import { WorkoutSession, ExerciseLog, Routine, ExerciseTemplate } from './types';
+import React, { useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, StyleSheet, Modal, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useAsyncStorage } from './hooks/useAsyncStorage';
+import { WorkoutSession, Routine, ExerciseTemplate } from './types';
 import { MASTER_EXERCISE_LIST, INITIAL_TEMPLATE_IDS, generateId } from './constants';
 import Dashboard from './components/Dashboard';
 import ActiveWorkout from './components/ActiveWorkout';
@@ -8,64 +12,63 @@ import ScienceTab from './components/Analytics';
 import RoutineBuilder from './components/RoutineBuilder';
 import NutritionLog from './components/NutritionLog';
 import Settings from './components/Settings';
-import { LayoutDashboard, Dumbbell, Activity, Flame, PartyPopper, PlusCircle, Settings as SettingsIcon } from 'lucide-react';
 
-type ViewState = 'dashboard' | 'workout' | 'builder' | 'fuel' | 'analytics' | 'settings';
+// Icons (we'll use simple text for now, or you can install react-native-vector-icons)
+import { Home, Dumbbell, Activity, Flame, Settings as SettingsIcon } from './components/Icons';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const [activeView, setActiveView] = useState<ViewState>('dashboard');
-  const [history, setHistory] = useLocalStorage<WorkoutSession[]>('hl-history', []);
-  const [routines, setRoutines] = useLocalStorage<Routine[]>('hl-routines', []);
-  const [activeSession, setActiveSession] = useLocalStorage<WorkoutSession | null>('hl-active-session', null);
-  const [customExercises, setCustomExercises] = useLocalStorage<ExerciseTemplate[]>('hl-custom-exercises', []);
+  const [history, setHistory, historyLoading] = useAsyncStorage<WorkoutSession[]>('hl-history', []);
+  const [routines, setRoutines, routinesLoading] = useAsyncStorage<Routine[]>('hl-routines', []);
+  const [activeSession, setActiveSession, sessionLoading] = useAsyncStorage<WorkoutSession | null>('hl-active-session', null);
+  const [customExercises, setCustomExercises, exercisesLoading] = useAsyncStorage<ExerciseTemplate[]>('hl-custom-exercises', []);
+  
+  const [showWorkout, setShowWorkout] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
-  // Combine Master + Custom
-  const allExercises = useMemo(() => {
-      return [...MASTER_EXERCISE_LIST, ...customExercises];
+  const allExercises = React.useMemo(() => {
+    return [...MASTER_EXERCISE_LIST, ...customExercises];
   }, [customExercises]);
 
-  // --- Actions ---
-
   const startWorkout = (routine?: Routine) => {
-    let exercises: ExerciseLog[] = [];
+    let exercises: any[] = [];
 
     if (routine) {
-        // Build from Routine
-        exercises = routine.exercises.map(exDef => {
-            const template = allExercises.find(e => e.id === exDef.exerciseId);
-            if (!template) return null;
-            return {
-                exerciseId: template.id,
-                name: template.name,
-                targetMuscle: template.muscleGroup,
-                sets: Array.from({ length: exDef.targetSets }).map(() => ({
-                    id: generateId(),
-                    weight: 0,
-                    reps: 0,
-                    rpe: 8,
-                    completed: false
-                }))
-            };
-        }).filter(Boolean) as ExerciseLog[];
+      exercises = routine.exercises.map(exDef => {
+        const template = allExercises.find(e => e.id === exDef.exerciseId);
+        if (!template) return null;
+        return {
+          exerciseId: template.id,
+          name: template.name,
+          targetMuscle: template.muscleGroup,
+          sets: Array.from({ length: exDef.targetSets }).map(() => ({
+            id: generateId(),
+            weight: 0,
+            reps: 0,
+            rpe: 8,
+            completed: false
+          }))
+        };
+      }).filter(Boolean);
     } else {
-        // Default Template (Fallback)
-        exercises = INITIAL_TEMPLATE_IDS.map(id => {
-          const def = allExercises.find(e => e.id === id);
-          if(!def) return null;
-          return {
-            exerciseId: def.id,
-            name: def.name,
-            targetMuscle: def.muscleGroup,
-            sets: Array.from({ length: def.defaultSets }).map(() => ({
-              id: generateId(),
-              weight: 0,
-              reps: 0,
-              rpe: 8,
-              completed: false
-            }))
-          };
-        }).filter(Boolean) as ExerciseLog[];
+      exercises = INITIAL_TEMPLATE_IDS.map(id => {
+        const def = allExercises.find(e => e.id === id);
+        if (!def) return null;
+        return {
+          exerciseId: def.id,
+          name: def.name,
+          targetMuscle: def.muscleGroup,
+          sets: Array.from({ length: def.defaultSets }).map(() => ({
+            id: generateId(),
+            weight: 0,
+            reps: 0,
+            rpe: 8,
+            completed: false
+          }))
+        };
+      }).filter(Boolean);
     }
 
     const newSession: WorkoutSession = {
@@ -77,7 +80,7 @@ export default function App() {
     };
 
     setActiveSession(newSession);
-    setActiveView('workout');
+    setShowWorkout(true);
   };
 
   const updateSession = (updated: WorkoutSession) => {
@@ -92,169 +95,192 @@ export default function App() {
       };
       setHistory([...history, completedSession]);
       setActiveSession(null);
+      setShowWorkout(false);
       
-      // Confetti Effect
       setShowConfetti(true);
       setTimeout(() => {
         setShowConfetti(false);
-        setActiveView('dashboard');
       }, 3000);
     }
   };
 
   const saveRoutine = (newRoutine: Routine) => {
-      setRoutines([...routines, newRoutine]);
-      setActiveView('dashboard');
+    setRoutines([...routines, newRoutine]);
+    setShowBuilder(false);
   };
 
   const addCustomExercise = (ex: ExerciseTemplate) => {
-      setCustomExercises([...customExercises, ex]);
+    setCustomExercises([...customExercises, ex]);
   };
-  
-  const resetData = () => {
-      if(window.confirm('Are you sure you want to wipe all data? This cannot be undone.')) {
-          setHistory([]);
-          setRoutines([]);
-          setActiveSession(null);
-          setCustomExercises([]);
-          window.localStorage.removeItem('hl-nutrition-logs');
-          window.localStorage.removeItem('hl-user-preferences');
-          alert('All data reset.');
-          setActiveView('dashboard');
-      }
+
+  const resetData = async () => {
+    setHistory([]);
+    setRoutines([]);
+    setActiveSession(null);
+    setCustomExercises([]);
   };
 
   const deleteRoutine = (id: string) => {
-      if(window.confirm('Delete this routine?')) {
-          setRoutines(routines.filter(r => r.id !== id));
-      }
+    setRoutines(routines.filter(r => r.id !== id));
   };
 
   const deleteSession = (id: string) => {
-      if(window.confirm('Delete this workout log?')) {
-          setHistory(history.filter(h => h.id !== id));
-      }
+    setHistory(history.filter(h => h.id !== id));
   };
 
-  // --- Render ---
+  if (historyLoading || routinesLoading || sessionLoading || exercisesLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background text-zinc-100 font-sans selection:bg-primary/30">
-      
-      {/* Content Area */}
-      <main className="max-w-md mx-auto min-h-screen relative shadow-2xl shadow-black/50 bg-background overflow-hidden">
-        {activeView === 'dashboard' && (
-          <Dashboard 
-            history={history} 
-            routines={routines}
-            onStartWorkout={startWorkout}
-            onResume={() => setActiveView('workout')}
-            onGoToBuilder={() => setActiveView('builder')}
-            onOpenSettings={() => setActiveView('settings')}
-            activeSession={activeSession}
-            onDeleteRoutine={deleteRoutine}
-            onDeleteSession={deleteSession}
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Tab.Navigator
+          screenOptions={{
+            tabBarStyle: styles.tabBar,
+            tabBarActiveTintColor: '#06b6d4',
+            tabBarInactiveTintColor: '#71717a',
+            headerShown: false,
+          }}
+        >
+          <Tab.Screen 
+            name="Home" 
+            options={{
+              tabBarIcon: ({ color, size }) => <Home color={color} size={size} />
+            }}
+          >
+            {() => (
+              <Dashboard 
+                history={history}
+                routines={routines}
+                onStartWorkout={startWorkout}
+                onResume={() => setShowWorkout(true)}
+                onGoToBuilder={() => setShowBuilder(true)}
+                onOpenSettings={() => {}}
+                activeSession={activeSession}
+                onDeleteRoutine={deleteRoutine}
+                onDeleteSession={deleteSession}
+              />
+            )}
+          </Tab.Screen>
+
+          <Tab.Screen 
+            name="Fuel" 
+            component={NutritionLog}
+            options={{
+              tabBarIcon: ({ color, size }) => <Flame color={color} size={size} />
+            }}
           />
-        )}
-        
-        {activeView === 'workout' && activeSession && (
-          <ActiveWorkout 
-            session={activeSession}
-            history={history}
-            onUpdateSession={updateSession}
-            onFinish={finishWorkout}
-            availableExercises={allExercises}
-          />
-        )}
 
-        {activeView === 'builder' && (
-            <RoutineBuilder 
-                onSave={saveRoutine}
-                onCancel={() => setActiveView('dashboard')}
-                availableExercises={allExercises}
-                onAddCustomExercise={addCustomExercise}
-            />
-        )}
+          <Tab.Screen 
+            name="Science" 
+            options={{
+              tabBarIcon: ({ color, size }) => <Activity color={color} size={size} />
+            }}
+          >
+            {() => <ScienceTab history={history} />}
+          </Tab.Screen>
 
-        {activeView === 'fuel' && (
-          <NutritionLog />
-        )}
-
-        {activeView === 'analytics' && (
-          <ScienceTab history={history} />
-        )}
-
-        {activeView === 'settings' && (
-            <Settings 
-                onBack={() => setActiveView('dashboard')}
+          <Tab.Screen 
+            name="Settings"
+            options={{
+              tabBarIcon: ({ color, size }) => <SettingsIcon color={color} size={size} />
+            }}
+          >
+            {() => (
+              <Settings 
+                onBack={() => {}}
                 onReset={resetData}
-            />
-        )}
-        
-        {/* Navigation Bar - Hide on Workout, Builder to focus */}
-        {activeView !== 'workout' && activeView !== 'builder' && (
-            <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-lg border-t border-zinc-800 pb-safe">
-                <div className="max-w-md mx-auto flex justify-around items-center h-16 px-1">
-                    <NavButton 
-                        active={activeView === 'dashboard'} 
-                        onClick={() => setActiveView('dashboard')} 
-                        icon={LayoutDashboard} 
-                        label="Home" 
-                    />
-                     <NavButton 
-                        active={activeView === 'fuel'} 
-                        onClick={() => setActiveView('fuel')} 
-                        icon={Flame} 
-                        label="Fuel" 
-                    />
-                    <div className="relative -top-5">
-                         <button 
-                            onClick={() => {
-                                if(activeSession) setActiveView('workout');
-                                else setActiveView('builder');
-                            }}
-                            className="w-14 h-14 rounded-full bg-primary text-black flex items-center justify-center shadow-lg shadow-primary/20 border-4 border-background"
-                        >
-                            {activeSession ? <Dumbbell className="w-6 h-6 animate-pulse" /> : <PlusCircle className="w-8 h-8" />}
-                        </button>
-                    </div>
-                    <NavButton 
-                        active={activeView === 'analytics'} 
-                        onClick={() => setActiveView('analytics')} 
-                        icon={Activity} 
-                        label="Science" 
-                    />
-                    <NavButton 
-                        active={activeView === 'settings'} 
-                        onClick={() => setActiveView('settings')} 
-                        icon={SettingsIcon} 
-                        label="Settings" 
-                    />
-                </div>
-            </nav>
-        )}
-      </main>
+              />
+            )}
+          </Tab.Screen>
+        </Tab.Navigator>
 
-      {/* Confetti Modal Overlay */}
-      {showConfetti && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="text-center scale-110 animate-pulse">
-                <PartyPopper className="w-24 h-24 text-primary mx-auto mb-4 animate-bounce" />
-                <h2 className="text-3xl font-bold text-white mb-2">Workout Complete!</h2>
-                <p className="text-zinc-400">Great job adhering to the science.</p>
-            </div>
-        </div>
-      )}
-    </div>
+        {/* Workout Modal */}
+        <Modal visible={showWorkout} animationType="slide">
+          {activeSession && (
+            <ActiveWorkout
+              session={activeSession}
+              history={history}
+              onUpdateSession={updateSession}
+              onFinish={finishWorkout}
+              availableExercises={allExercises}
+              onClose={() => setShowWorkout(false)}
+            />
+          )}
+        </Modal>
+
+        {/* Builder Modal */}
+        <Modal visible={showBuilder} animationType="slide">
+          <RoutineBuilder
+            onSave={saveRoutine}
+            onCancel={() => setShowBuilder(false)}
+            availableExercises={allExercises}
+            onAddCustomExercise={addCustomExercise}
+          />
+        </Modal>
+
+        {/* Confetti Modal */}
+        <Modal visible={showConfetti} transparent animationType="fade">
+          <View style={styles.confettiContainer}>
+            <View style={styles.confettiContent}>
+              <Text style={styles.confettiEmoji}>🎉</Text>
+              <Text style={styles.confettiTitle}>Workout Complete!</Text>
+              <Text style={styles.confettiSubtitle}>Great job adhering to the science.</Text>
+            </View>
+          </View>
+        </Modal>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
-const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
-    <button 
-        onClick={onClick}
-        className={`flex flex-col items-center justify-center w-14 h-full space-y-1 transition-all duration-200 ${active ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'}`}
-    >
-        <Icon className={`w-5 h-5 ${active ? 'fill-primary/20' : ''}`} strokeWidth={active ? 2.5 : 2} />
-        <span className="text-[10px] font-medium">{label}</span>
-    </button>
-);
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#09090b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#e4e4e7',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  tabBar: {
+    backgroundColor: '#18181b',
+    borderTopColor: '#27272a',
+    borderTopWidth: 1,
+    paddingBottom: 5,
+    paddingTop: 5,
+    height: 60,
+  },
+  confettiContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confettiContent: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  confettiEmoji: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  confettiTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  confettiSubtitle: {
+    fontSize: 16,
+    color: '#a1a1aa',
+  },
+});
